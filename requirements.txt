@@ -1,7 +1,7 @@
-oipd
+oipd==0.0.4
 matplotlib
-yfinance
+yfinance==0.2.54
 pandas
 requests
-numpy
+numpy>=1.26,<3
 scipy
