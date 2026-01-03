@@ -38,11 +38,11 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        python pytest.py
+        python github_action_stock_pdf_tracking.py
     - name: Commit results 
       run: | 
         git config --global user.name "github-actions" 
         git config --global user.email "github-actions@github.com" 
-        git add "test_output.txt"
+        git add "sp500_options_analysis.xlsx"
         git commit -m "Daily update" || echo "No changes" 
         git push
