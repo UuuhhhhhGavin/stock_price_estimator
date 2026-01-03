@@ -1,0 +1,7 @@
+oipd
+matplotlib
+yfinance
+pandas
+requests
+numpy
+scipy
