@@ -39,6 +39,7 @@ jobs:
             print("oipd import OK")
         except Exception as e:
             print("oipd import FAILED:", e)
+        EOF
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
