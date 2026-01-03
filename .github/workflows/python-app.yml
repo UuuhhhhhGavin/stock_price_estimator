@@ -39,3 +39,9 @@ jobs:
     - name: Test with pytest
       run: |
         python pytest.py
+    - name: Commit results 
+      run: | 
+        git config --global user.name "github-actions" 
+        git config --global user.email "github-actions@github.com" 
+        git add sp500_options_analysis.xlsx 
+        git commit -m "Daily update" || echo "No changes" git push
