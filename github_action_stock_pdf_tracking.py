@@ -29,6 +29,7 @@ def safe_get_history(ticker: str, period: str = '1d', retries=5, delay=5) -> pd.
         try:
             stock = yf.Ticker(ticker)
             hist=stock.history(period=period)
+            time.sleep(1)
             return stock, hist
         except YFRateLimitError:
             wait=delay*(2**i) #exponential backoff
@@ -252,4 +253,5 @@ if __name__=='__main__':
            
         else:
             print("No data to save.....")
+
 
