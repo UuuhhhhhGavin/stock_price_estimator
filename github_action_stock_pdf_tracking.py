@@ -203,7 +203,7 @@ def append_daily_log(result: dict, output_path: str, output_filename:str):
 if __name__=='__main__':
     stock_overview=[]
     #tickers=list(set(get_sp500_tickers()))
-    tickers=['TSLA'] #For testing purposes
+    tickers=['TSLA',"AAPL","MSFT","AMZN","GOOGL","META","NVDA","JPM","V","UNH"] #For testing purposes
     print(f'Analyzing {len(tickers)} tickers...')
     for ticker in tickers:
          try:
@@ -253,5 +253,6 @@ if __name__=='__main__':
            
         else:
             print("No data to save.....")
+
 
 
