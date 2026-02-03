@@ -15,21 +15,16 @@ import numpy as np
 from scipy.stats import norm
 
 
-
-# %%
-
-
 def get_dir():
     project_path = os.getcwd()
     return project_path
 
 
 def safe_get_history(ticker: str, period: str = '1d', retries=5, delay=5) -> pd.DataFrame:
+    stock=yf.Ticker(ticker)
     for i in range(retries):
         try:
-            stock = yf.Ticker(ticker)
             hist=stock.history(period=period)
-            time.sleep(1)
             return stock, hist
         except YFRateLimitError:
             wait=delay*(2**i) #exponential backoff
@@ -40,9 +35,26 @@ def safe_get_history(ticker: str, period: str = '1d', retries=5, delay=5) -> pd.
             break
     return None, None
 
+def bulk_get_history(tickers, period='1d', retries=5, delay=5):
+    for i in range(retries):
+        try:
+            df = yf.download(tickers, period=period, group_by='ticker', threads=True)
+            return df
+        except YFRateLimitError:
+            wait = delay * (2 ** i)
+            print(f'Rate limit hit for bulk download, waiting {wait} seconds')
+            time.sleep(wait)
+        except Exception as e:
+            print(f'Other error for bulk download: {e}')
+            break
+    return None
+
+
+
+
 #hist=safe_get_history("APPL")
 #if hist is not None:
-#    current_price=hist['Close'][0]
+#    current_price=hist['Close'].iloc[-1]
 
 # %%
 def get_sp500_tickers():
@@ -82,14 +94,60 @@ def analyze_ticker(ticker, stock, stock_hist,options_chain, calls, expiration,):
             print(f"[{ticker}] Failed to fetch stock data.")
             return None
         ##Option for period are: '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'
-        current_price = stock_hist['Close'][0] if stock_hist is not None else None # gets the current price of the stock (closing 1day price)
-        # Extract trading volume if available
+        # Robustly get the latest close and volume whether stock_hist is a DataFrame, Series, or has MultiIndex columns
+        current_price = None
         current_volume = None
         try:
-            if stock_hist is not None and 'Volume' in stock_hist.columns:
-                current_volume = int(stock_hist['Volume'][0])
+            if stock_hist is not None:
+                # Case 1: DataFrame with simple columns
+                if isinstance(stock_hist, pd.DataFrame) and 'Close' in stock_hist.columns:
+                    col = stock_hist['Close']
+                    current_price = float(col.iloc[-1]) if hasattr(col, 'iloc') else float(col)
+                # Case 2: DataFrame with MultiIndex columns from yf.download when auto_adjust=True
+                elif isinstance(stock_hist, pd.DataFrame) and isinstance(stock_hist.columns, pd.MultiIndex):
+                    # find first 'Close' column
+                    close_cols = [c for c in stock_hist.columns if c[0] == 'Close']
+                    if close_cols:
+                        current_price = float(stock_hist[close_cols[0]].iloc[-1])
+                    else:
+                        # fallback to last row's 'Close' if present
+                        try:
+                            current_price = float(stock_hist.iloc[-1]['Close'])
+                        except Exception:
+                            current_price = None
+                # Case 3: Series-like (single column dataframe or series)
+                elif hasattr(stock_hist, 'iloc'):
+                    try:
+                        # If it's a series of close prices
+                        current_price = float(stock_hist['Close'].iloc[-1]) if 'Close' in stock_hist else float(stock_hist.iloc[-1])
+                    except Exception:
+                        current_price = None
+        except Exception:
+            current_price = None
+
+        # Volume
+        try:
+            if stock_hist is not None:
+                if isinstance(stock_hist, pd.DataFrame) and 'Volume' in stock_hist.columns:
+                    vol = stock_hist['Volume']
+                    current_volume = int(vol.iloc[-1]) if hasattr(vol, 'iloc') else int(vol)
+                elif isinstance(stock_hist, pd.DataFrame) and isinstance(stock_hist.columns, pd.MultiIndex):
+                    vol_cols = [c for c in stock_hist.columns if c[0] == 'Volume']
+                    if vol_cols:
+                        current_volume = int(stock_hist[vol_cols[0]].iloc[-1])
+                    else:
+                        try:
+                            current_volume = int(stock_hist.iloc[-1]['Volume'])
+                        except Exception:
+                            current_volume = None
+                elif hasattr(stock_hist, 'iloc'):
+                    try:
+                        current_volume = int(stock_hist['Volume'].iloc[-1]) if 'Volume' in stock_hist else None
+                    except Exception:
+                        current_volume = None
         except Exception:
             current_volume = None
+
         if current_price is None:
             print(f"[{ticker}] No current price data available.")
             return None
@@ -108,7 +166,7 @@ def analyze_ticker(ticker, stock, stock_hist,options_chain, calls, expiration,):
         ticker_pdf = cli.generate_pdf.run(
             input_csv_path=temp_csv_path,
             current_price=float(current_price),
-            days_forward=int(days_difference),
+            days_forward=max(days_difference*5/7,1), #adjusts for weekends
             risk_free_rate=0.03,
             fit_kernel_pdf=True,
         )
@@ -116,18 +174,29 @@ def analyze_ticker(ticker, stock, stock_hist,options_chain, calls, expiration,):
 
         ##Normalize the PDF
         normalized_pdf = ticker_pdf.PDF / ticker_pdf.PDF.sum()
-        expected_price=(ticker_pdf.Price * normalized_pdf).sum()
+        expected_price = float((ticker_pdf.Price * normalized_pdf).sum())
 
+        # Expected standard deviation & percent (for calibration/regime filtering)
+        expected_std = float(np.sqrt(((ticker_pdf.Price - expected_price) ** 2 * normalized_pdf).sum()))
+        expected_std_pct = float(expected_std / current_price) if current_price else None
 
+        # Percentiles (25%, 50%, 75%) for interval checks
+        cdf = np.cumsum(normalized_pdf)
+        p25 = float(ticker_pdf.Price[np.searchsorted(cdf, 0.25)])
+        p50 = float(ticker_pdf.Price[np.searchsorted(cdf, 0.50)])
+        p75 = float(ticker_pdf.Price[np.searchsorted(cdf, 0.75)])
+        liquid_calls=calls[(calls['bid']>0) &(calls['ask']>0) &(calls['impliedVolatility']>0)]
+        if liquid_calls.empty:
+            return None
         #Find the option strike closest to the current price
-        atm_option = calls.iloc[(calls['strike'] - current_price).abs().argsort()[:1]]
-        atm_strike = atm_option['strike'].values[0] #strike price for at-the-money option
-        iv = atm_option['impliedVolatility'].values[0] #implied volatility for at-the-money option
-        atm_cost = atm_option['last_price'].values[0] #cost of at-the-money option
+        atm_option = liquid_calls.iloc[(liquid_calls['strike'] - current_price).abs().argsort()[:1]]
+        atm_strike = float(atm_option['strike'].values[0]) #strike price for at-the-money option
+        iv = float(atm_option['impliedVolatility'].values[0]) #implied volatility for at-the-money option
+        atm_cost = float(atm_option['last_price'].values[0]) #cost of at-the-money option
         #Compute the delta
-        T=days_difference/365
+        T=days_difference/365  #days in a year
         sigma=iv
-        atm_delta=compute_stock_delta(current_price,atm_strike,T,0.03,sigma)  
+        atm_delta = float(compute_stock_delta(current_price,atm_strike,T,0.03,sigma))
 
 
         return {
@@ -138,11 +207,20 @@ def analyze_ticker(ticker, stock, stock_hist,options_chain, calls, expiration,):
             'current_price': current_price,
             'current_volume': current_volume,
             'expected_price': expected_price,
-            'percent increase %': (expected_price - current_price) / current_price * 100,
+            'expected_std': expected_std,
+            'expected_std_pct': expected_std_pct,
+            'p25': p25,
+            'p50': p50,
+            'p75': p75,
+            'percent change %': (expected_price - current_price) / current_price * 100,
+            'realized_price': None,
+            'landed_in_50_pct_interval': None,
             'ATM Strike Price': atm_strike,
             'ATM IV': iv,
             'ATM Contract Cost': atm_cost,
             'ATM Delta': atm_delta,
+            'pdf_directional_correct': None,
+            'z_score': None,
             }
 
     except Exception as e:
@@ -161,6 +239,130 @@ def compute_stock_delta(S,K,T,r,sigma,option_type='call'):
         return -norm.cdf(-d1)
 
 
+def load_log(path: str) -> pd.DataFrame:
+    """Load the existing Excel log and return a DataFrame (or empty DataFrame if missing/invalid)."""
+    if os.path.exists(path):
+        try:
+            return pd.read_excel(path)
+        except Exception:
+            return pd.DataFrame()
+    return pd.DataFrame()
+
+
+def merge_results(existing: pd.DataFrame, new_results: list) -> pd.DataFrame:
+    """Merge new results into the existing DataFrame and de-duplicate by (date, ticker, analyzed option expiration).
+
+    New results overwrite older rows for the same (date, ticker, expiration).
+    """
+    new_df = pd.DataFrame(new_results)
+    new_df['logged_at'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
+    if existing.empty:
+        combined = new_df
+    else:
+        combined = pd.concat([existing, new_df], ignore_index=True)
+
+    dedup_cols = ['date', 'ticker', 'analyzed option expiration']
+    combined = combined.drop_duplicates(subset=dedup_cols, keep='last')
+    return combined
+
+
+def save_log(df: pd.DataFrame, path: str):
+    """Atomically save the DataFrame to an Excel file by writing to a temp file then replacing.
+    Uses a temp file with a proper '.xlsx' suffix (required by Excel writer engine).
+    """
+    import tempfile as _tempfile
+    # Create a real temporary file with the required .xlsx extension
+    tmp_file = _tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp_path = tmp_file.name
+    tmp_file.close()
+    with pd.ExcelWriter(tmp_path, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    # Atomic replace
+    os.replace(tmp_path, path)
+
+def get_realized_price(ticker, expiration_date, lookback_days=5):
+    """
+    Returns the close price on expiration date,
+    or last trading day before expiration.
+    """
+    expiration = pd.to_datetime(expiration_date)
+    start = expiration - pd.Timedelta(days=lookback_days)
+    end = expiration + pd.Timedelta(days=1)
+
+    hist = yf.download(
+        ticker,
+        start=start.strftime('%Y-%m-%d'),
+        end=end.strftime('%Y-%m-%d'),
+        progress=False
+    )
+
+    if hist.empty:
+        return None
+
+    hist = hist.sort_index()
+    valid = hist[hist.index <= expiration]
+
+    if valid.empty:
+        return None
+
+    return float(valid['Close'].iloc[-1])
+
+
+def update_realized_prices(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Backfills realized prices and evaluation metrics for rows
+    where expiration has passed and realized_price is missing.
+    """
+    if df.empty:
+        return df
+    today = pd.Timestamp.today().normalize()
+    # Ensure datetime types
+    df['analyzed option expiration'] = pd.to_datetime(
+        df['analyzed option expiration'], errors='coerce'
+    )
+    # Rows eligible for update
+    mask = (
+        df['realized_price'].isna() &
+        df['analyzed option expiration'].notna() &
+        (df['analyzed option expiration'] < today)
+    )
+    if not mask.any():
+        return df
+    for idx, row in df.loc[mask].iterrows():
+        ticker = row['ticker']
+        expiration = row['analyzed option expiration']
+        try:
+            realized = get_realized_price(ticker, expiration)
+            if realized is None:
+                continue
+            df.at[idx, 'realized_price'] = realized
+            # Directional accuracy
+            pred_dir = row['expected_price'] - row['current_price']
+            real_dir = realized - row['current_price']
+            df.at[idx, 'pdf_directional_correct'] = (pred_dir * real_dir) > 0
+            # Interval hit (50%)
+            if pd.notna(row.get('p25')) and pd.notna(row.get('p75')):
+                df.at[idx, 'landed_in_50_pct_interval'] = (
+                    row['p25'] <= realized <= row['p75']
+                )
+            # Absolute error %
+            df.at[idx, 'abs_error_pct'] = (
+                abs(realized - row['expected_price']) /
+                row['current_price'] * 100
+            )
+            # Z-score (vol-normalized error)
+            if row.get('expected_std', 0) and row['expected_std'] > 0:
+                df.at[idx, 'z_score'] = (
+                    (realized - row['expected_price']) /
+                    row['expected_std']
+                )
+        except Exception as e:
+            print(f"[{ticker}] Failed to backfill realized price: {e}")
+            continue
+    return df
+
+
 def append_daily_log(result: dict, output_path: str, output_filename:str):
     """Append a single result dict to an Excel log, but only once per day per ticker+expiration.
 
@@ -177,7 +379,6 @@ def append_daily_log(result: dict, output_path: str, output_filename:str):
                 existing = pd.read_excel(output_path)
             except Exception:
                 existing = pd.DataFrame()
-
             if not existing.empty:
                 mask = (
                     (existing.get('date') == result.get('date')) &
@@ -200,36 +401,40 @@ def append_daily_log(result: dict, output_path: str, output_filename:str):
         print(f"Failed to append log: {e}")
 
 
-if __name__=='__main__':
-    stock_overview=[]
-    #tickers=list(set(get_sp500_tickers()))
-    tickers=['TSLA',"AAPL","MSFT","AMZN","GOOGL","META","NVDA","JPM","SMR","OKLO"] #For testing purposes
+if __name__ == '__main__':
+    stock_overview = []
+    tickers = ['TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'NVDA', 'JPM', 'V', 'UNH']
+
     print(f'Analyzing {len(tickers)} tickers...')
+
+    # 1. Bulk price data
+    bulk_hist = bulk_get_history(tickers, period='1d')
+
     for ticker in tickers:
-         try:
-             stock, stock_hist = safe_get_history(ticker, period='1d') #gets the 1Day trading information on the stock
-             if stock is None or stock_hist is None:
-                print(f'[{ticker}] Failed to fetch stock data.')
-                continue
-             options_chain, calls, expirations = get_options_chain(stock, stock_hist, expiration_week=1)
-             print(f'[{ticker}] Expirations: {expirations}')
-             if options_chain is None or calls is None:
-                print(f'[{ticker}] No options data available.')
-                continue
-             expiration=expirations[1]
-             result = analyze_ticker(ticker, stock, stock_hist, options_chain, calls, expiration)
-             if result is not None:
+        try:
+            # 2. Create Ticker object (needed for options)
+            stock = yf.Ticker(ticker)
+            # 3. Extract that ticker’s price history from the bulk DataFrame
+            stock_hist = bulk_hist[ticker]
+            # 4. Options chain
+            options_chain, calls, expirations = get_options_chain(
+                stock, stock_hist, expiration_week=1
+            )
+            print(f'[{ticker}] Expirations: {expirations}')
+            expiration = expirations[1]
+            # 5. Analysis
+            result = analyze_ticker(
+                ticker, stock, stock_hist, options_chain, calls, expiration
+            )
+            if result is not None:
                 for key, value in result.items():
-                    print(f'{key.title()}:{value}')
+                    print(f'{key.title()}: {value}')
                 stock_overview.append(result)
-                print("\n")
-         except Exception as e:
-             print(f"[{ticker}] Error: {e}")
-             continue
-         
-         
-
-
+                print()
+        except Exception as e:
+            print(f"[{ticker}] Error: {e}")
+            continue
+        
     #%%
     # Save the results to a CSV file
     #stock_overview=[1,2,3,4,5]
@@ -241,19 +446,23 @@ if __name__=='__main__':
 
         print("Saving is enabled, saving the data to a file.")
         if stock_overview:
-            project_dir=get_dir()
-            output_filename = f"sp500_options_analysis.xlsx"
-            file_path = os.path.join(project_dir,output_filename)
-            for result in stock_overview:
-                # Append to daily log (will skip duplicates for same date+ticker+expiration)
-                try:
-                    append_daily_log(result, file_path, output_filename)
-                except Exception as e:
-                    print(f"Failed to log result for {ticker}: {e}")
+            project_dir = get_dir()
+            output_filename = "sp500_options_analysis.xlsx"
+            file_path = os.path.join(project_dir, output_filename)
+
+            # Load existing sheet once, merge all new results, then save atomically
+            try:
+                existing = load_log(file_path)
+            except Exception:
+                existing = pd.DataFrame()
+
+            try:
+                merged = merge_results(existing, stock_overview)
+                merged=update_realized_prices(merged)
+                save_log(merged, file_path)
+                print(f"Saved merged log to {file_path} ({len(merged)} rows).")
+            except Exception as e:
+                print(f"Failed to save merged log: {e}")
            
         else:
             print("No data to save.....")
-
-
-
-
