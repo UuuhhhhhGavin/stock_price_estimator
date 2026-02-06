@@ -13,6 +13,7 @@ from yfinance.exceptions import YFRateLimitError
 #import requests
 import numpy as np
 from scipy.stats import norm
+import requests
 
 
 def get_dir():
@@ -61,7 +62,12 @@ def get_sp500_tickers():
     """Fetches the list of S&P 500 tickers from Wikipedia"""
     ##Outputs list of tickers: ['MMM', 'AOS'.....]
     url='https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    table=pd.read_html(url)
+    header = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.75 Safari/537.36",
+    "X-Requested-With": "XMLHttpRequest"
+    }
+    r=requests.get(url, headers=header)
+    table=pd.read_html(r.text)
     df=table[0]
     return df['Symbol'].tolist()
 #tickers=get_sp500_tickers()
@@ -286,6 +292,10 @@ def get_realized_price(ticker, expiration_date, lookback_days=5):
     Returns the close price on expiration date,
     or last trading day before expiration.
     """
+    """
+    (Legacy) Single-ticker realized price lookup kept for compatibility.
+    Prefer using `bulk_get_realized_prices` for many tickers.
+    """
     expiration = pd.to_datetime(expiration_date)
     start = expiration - pd.Timedelta(days=lookback_days)
     end = expiration + pd.Timedelta(days=1)
@@ -297,7 +307,7 @@ def get_realized_price(ticker, expiration_date, lookback_days=5):
         progress=False
     )
 
-    if hist.empty:
+    if hist is None or getattr(hist, 'empty', True):
         return None
 
     hist = hist.sort_index()
@@ -317,11 +327,11 @@ def update_realized_prices(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     today = pd.Timestamp.today().normalize()
-    # Ensure datetime types
     df['analyzed option expiration'] = pd.to_datetime(
         df['analyzed option expiration'], errors='coerce'
     )
-    # Rows eligible for update
+
+    # Rows eligible for update (expired and missing realized_price)
     mask = (
         df['realized_price'].isna() &
         df['analyzed option expiration'].notna() &
@@ -329,37 +339,85 @@ def update_realized_prices(df: pd.DataFrame) -> pd.DataFrame:
     )
     if not mask.any():
         return df
-    for idx, row in df.loc[mask].iterrows():
-        ticker = row['ticker']
-        expiration = row['analyzed option expiration']
+
+    subset = df.loc[mask].copy()
+    # Prepare download window: earliest start and latest end across all expirations
+    lookback_days = 5
+    subset['start'] = subset['analyzed option expiration'] - pd.Timedelta(days=lookback_days)
+    overall_start = subset['start'].min().strftime('%Y-%m-%d')
+    overall_end = (subset['analyzed option expiration'] + pd.Timedelta(days=1)).max().strftime('%Y-%m-%d')
+    tickers = subset['ticker'].unique().tolist()
+
+    try:
+        # Bulk download for all required tickers in one call (much faster than per-row queries)
+        hist_all = yf.download(tickers, start=overall_start, end=overall_end, progress=False, group_by='ticker', threads=True)
+    except Exception as e:
+        print(f"Failed to bulk download realized prices: {e}")
+        return df
+
+    def _get_close_series(hist_all_obj, tk):
+        if hist_all_obj is None or getattr(hist_all_obj, 'empty', False):
+            return None
+        # If multi-ticker download with per-ticker grouping
+        if isinstance(hist_all_obj.columns, pd.MultiIndex):
+            try:
+                return hist_all_obj[tk]['Close']
+            except Exception:
+                # fallback if ticker not present as top-level column
+                return None
+        # Single-ticker or other format
+        if 'Close' in hist_all_obj.columns:
+            return hist_all_obj['Close']
+        return None
+
+    realized_map = {}
+    for ticker, group in subset.groupby('ticker'):
         try:
-            realized = get_realized_price(ticker, expiration)
-            if realized is None:
+            close_series = _get_close_series(hist_all, ticker)
+            if close_series is None or getattr(close_series, 'empty', True):
                 continue
-            df.at[idx, 'realized_price'] = realized
-            # Directional accuracy
-            pred_dir = row['expected_price'] - row['current_price']
-            real_dir = realized - row['current_price']
-            df.at[idx, 'pdf_directional_correct'] = (pred_dir * real_dir) > 0
-            # Interval hit (50%)
-            if pd.notna(row.get('p25')) and pd.notna(row.get('p75')):
-                df.at[idx, 'landed_in_50_pct_interval'] = (
-                    row['p25'] <= realized <= row['p75']
-                )
-            # Absolute error %
-            df.at[idx, 'abs_error_pct'] = (
-                abs(realized - row['expected_price']) /
-                row['current_price'] * 100
-            )
-            # Z-score (vol-normalized error)
-            if row.get('expected_std', 0) and row['expected_std'] > 0:
-                df.at[idx, 'z_score'] = (
-                    (realized - row['expected_price']) /
-                    row['expected_std']
-                )
+            close_series = close_series.sort_index()
+            for idx, row in group.iterrows():
+                exp = row['analyzed option expiration']
+                valid = close_series[close_series.index <= exp]
+                if valid.empty:
+                    continue
+                realized_map[idx] = float(valid.iloc[-1])
         except Exception as e:
-            print(f"[{ticker}] Failed to backfill realized price: {e}")
+            print(f"[{ticker}] Failed while extracting realized prices: {e}")
             continue
+
+    if not realized_map:
+        return df
+
+    # Apply realized prices in bulk
+    idxs = list(realized_map.keys())
+    df.loc[idxs, 'realized_price'] = [realized_map[i] for i in idxs]
+
+    # Vectorized metrics updates for affected rows
+    cur = df.loc[idxs, 'current_price']
+    exp_price = df.loc[idxs, 'expected_price']
+    realized = df.loc[idxs, 'realized_price']
+
+    df.loc[idxs, 'pdf_directional_correct'] = ((exp_price - cur) * (realized - cur)) > 0
+
+    # landed_in_50_pct_interval (use apply across affected rows; small compared to many network calls)
+    def _in_50(row):
+        if pd.notna(row.get('p25')) and pd.notna(row.get('p75')):
+            return row['p25'] <= row['realized_price'] <= row['p75']
+        return None
+
+    df.loc[idxs, 'landed_in_50_pct_interval'] = df.loc[idxs].apply(_in_50, axis=1)
+
+    df.loc[idxs, 'abs_error_pct'] = (abs(df.loc[idxs, 'realized_price'] - df.loc[idxs, 'expected_price']) / df.loc[idxs, 'current_price']) * 100
+
+    # z-score where expected_std > 0
+    stds = df.loc[idxs, 'expected_std'].fillna(0)
+    nonzero = stds > 0
+    z = pd.Series(index=idxs, dtype=float)
+    z.loc[nonzero.index[nonzero]] = (df.loc[idxs, 'realized_price'] - df.loc[idxs, 'expected_price'])[nonzero] / stds[nonzero]
+    df.loc[idxs, 'z_score'] = z
+
     return df
 
 
@@ -403,8 +461,8 @@ def append_daily_log(result: dict, output_path: str, output_filename:str):
 
 if __name__ == '__main__':
     stock_overview = []
-    tickers = ['TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'NVDA', 'JPM', 'V', 'UNH']
-
+    #tickers = ['TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'NVDA', 'JPM', 'V', 'UNH']
+    tickers=get_sp500_tickers()
     print(f'Analyzing {len(tickers)} tickers...')
 
     # 1. Bulk price data
