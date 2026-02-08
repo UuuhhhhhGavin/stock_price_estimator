@@ -5,3 +5,5 @@ pandas
 requests
 numpy==1.23.4
 scipy
+lxml
+
