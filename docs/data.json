@@ -1,0 +1,24 @@
+{
+  "lastUpdated": "2025-02-08T10:30:00",
+  "dataCount": 1,
+  "columns": [
+    "Symbol",
+    "Strike",
+    "Expiration",
+    "Probability",
+    "Premium",
+    "IV",
+    "Price"
+  ],
+  "data": [
+    {
+      "Symbol": "AAPL",
+      "Strike": 220.0,
+      "Expiration": "2025-03-15",
+      "Probability": 0.68,
+      "Premium": 5.25,
+      "IV": 0.22,
+      "Price": 225.50
+    }
+  ]
+}
