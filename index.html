@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S&P 500 Options Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .controls {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        input, select {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .table-wrapper {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        
+        th:hover {
+            opacity: 0.9;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+        
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        .error {
+            background: white;
+            border-left: 4px solid #e74c3c;
+            padding: 20px;
+            border-radius: 6px;
+            color: #e74c3c;
+            margin: 20px 0;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            font-size: 0.9em;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+            font-size: 0.9em;
+        }
+        
+        .pagination button.active {
+            opacity: 0.7;
+            cursor: default;
+        }
+        
+        .search-summary {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 0.9em;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 S&P 500 Options Analysis Dashboard</h1>
+            <p class="subtitle">Real-time options chain data powered by GitHub Actions</p>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Records</div>
+                    <div class="stat-value" id="recordCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Unique Stocks</div>
+                    <div class="stat-value" id="stockCount">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last Updated</div>
+                    <div class="stat-value" id="lastUpdated">-</div>
+                </div>
+            </div>
+        </header>
+        
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="Search by symbol, company name...">
+            <input type="text" id="filterColumn" placeholder="Filter by column name...">
+            <select id="recordsPerPage">
+                <option value="25">25 records per page</option>
+                <option value="50">50 records per page</option>
+                <option value="100">100 records per page</option>
+                <option value="500">500 records per page</option>
+            </select>
+            <button onclick="resetFilters()">Reset Filters</button>
+            <button onclick="downloadJSON()">Download JSON</button>
+        </div>
+        
+        <div class="search-summary" id="searchSummary"></div>
+        
+        <div class="table-wrapper">
+            <div class="loading" id="loading">Loading data...</div>
+            <div id="errorDiv" style="display: none;"></div>
+            <table id="dataTable" style="display: none;">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="pagination" id="pagination"></div>
+        
+        <div class="footer">
+            <p>Data automatically updated daily via GitHub Actions | Last sync: <span id="footerTime">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        let originalData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let recordsPerPage = 25;
+
+        async function loadData() {
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('errorDiv');
+            
+            try {
+                const response = await fetch('./data.json');
+                if (!response.ok) {
+                    throw new Error('Failed to load data');
+                }
+                const result = await response.json();
+                
+                originalData = result.data;
+                filteredData = [...originalData];
+                
+                // Update stats
+                document.getElementById('recordCount').textContent = originalData.length.toLocaleString();
+                document.getElementById('lastUpdated').textContent = new Date(result.lastUpdated).toLocaleDateString();
+                document.getElementById('footerTime').textContent = result.lastUpdated;
+                
+                // Calculate unique stocks
+                const stocks = new Set(originalData.map(row => {
+                    for (const col of result.columns) {
+                        if (col.toLowerCase().includes('symbol') || col.toLowerCase().includes('ticker')) {
+                            return row[col];
+                        }
+                    }
+                    return null;
+                }).filter(s => s));
+                document.getElementById('stockCount').textContent = stocks.size.toLocaleString();
+                
+                // Create table headers
+                createTableHeaders(result.columns);
+                
+                // Display data
+                loading.style.display = 'none';
+                document.getElementById('dataTable').style.display = 'table';
+                displayTable();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                loading.style.display = 'none';
+                errorDiv.style.display = 'block';
+                errorDiv.className = 'error';
+                errorDiv.innerHTML = `<strong>Error loading data:</strong> ${error.message}<br><br>Make sure <code>data.json</code> is in the same directory as this HTML file.`;
+            }
+        }
+
+        function createTableHeaders(columns) {
+            const thead = document.getElementById('tableHead');
+            const headerRow = document.createElement('tr');
+            
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                th.onclick = () => sortTable(col);
+                th.title = 'Click to sort';
+                headerRow.appendChild(th);
+            });
+            
+            thead.appendChild(headerRow);
+        }
+
+        function displayTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            const start = (currentPage - 1) * recordsPerPage;
+            const end = start + recordsPerPage;
+            const pageData = filteredData.slice(start, end);
+            
+            if (pageData.length === 0) {
+                document.getElementById('dataTable').style.display = 'none';
+                document.getElementById('errorDiv').style.display = 'block';
+                document.getElementById('errorDiv').className = 'error';
+                document.getElementById('errorDiv').innerHTML = 'No results found.';
+                return;
+            }
+            
+            document.getElementById('dataTable').style.display = 'table';
+            document.getElementById('errorDiv').style.display = 'none';
+            
+            pageData.forEach(row => {
+                const tr = document.createElement('tr');
+                Object.values(row).forEach(val => {
+                    const td = document.createElement('td');
+                    td.textContent = val !== null ? val : '-';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            
+            updatePagination();
+            updateSearchSummary();
+        }
+
+        function updateSearchSummary() {
+            const summary = document.getElementById('searchSummary');
+            const searchVal = document.getElementById('searchInput').value;
+            
+            if (filteredData.length !== originalData.length) {
+                summary.textContent = `Found ${filteredData.length.toLocaleString()} of ${originalData.length.toLocaleString()} records`;
+            } else {
+                summary.textContent = '';
+            }
+        }
+
+        function updatePagination() {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+            
+            if (filteredData.length === 0) {
+                return;
+            }
+            
+            const totalPages = Math.ceil(filteredData.length / recordsPerPage);
+            
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '← Previous';
+            prevBtn.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    displayTable();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+            prevBtn.disabled = currentPage === 1;
+            pagination.appendChild(prevBtn);
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    const btn = document.createElement('button');
+                    btn.textContent = i;
+                    btn.onclick = () => {
+                        currentPage = i;
+                        displayTable();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    };
+                    if (i === currentPage) {
+                        btn.className = 'active';
+                    }
+                    pagination.appendChild(btn);
+                } else if (i === 2 || i === totalPages - 1) {
+                    const span = document.createElement('span');
+                    span.textContent = '...';
+                    span.style.padding = '0 5px';
+                    pagination.appendChild(span);
+                }
+            }
+            
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Next →';
+            nextBtn.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    displayTable();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+            nextBtn.disabled = currentPage === totalPages;
+            pagination.appendChild(nextBtn);
+        }
+
+        function sortTable(column) {
+            filteredData.sort((a, b) => {
+                const aVal = a[column];
+                const bVal = b[column];
+                
+                if (aVal === null) return 1;
+                if (bVal === null) return -1;
+                
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return aVal - bVal;
+                }
+                
+                return String(aVal).localeCompare(String(bVal));
+            });
+            
+            currentPage = 1;
+            displayTable();
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterColumn').value = '';
+            filteredData = [...originalData];
+            currentPage = 1;
+            displayTable();
+        }
+
+        function downloadJSON() {
+            const dataStr = JSON.stringify({
+                lastUpdated: new Date().toISOString(),
+                records: filteredData
+            }, null, 2);
+            
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sp500_options_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase();
+            filteredData = originalData.filter(row => {
+                return Object.values(row).some(val => 
+                    String(val).toLowerCase().includes(searchTerm)
+                );
+            });
+            currentPage = 1;
+            displayTable();
+        });
+
+        document.getElementById('recordsPerPage').addEventListener('change', function() {
+            recordsPerPage = parseInt(this.value);
+            currentPage = 1;
+            displayTable();
+        });
+
+        // Load data on page load
+        window.addEventListener('load', loadData);
+    </script>
+</body>
+</html>
