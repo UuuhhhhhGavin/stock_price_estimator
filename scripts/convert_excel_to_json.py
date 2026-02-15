@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Convert Excel data to JSON format for GitHub Pages display
 """
