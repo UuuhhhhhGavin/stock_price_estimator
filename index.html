@@ -58,6 +58,56 @@
             border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
+
+        .analysis-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        .analysis-section h2 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .analysis-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .analysis-list {
+            margin-top: 20px;
+            background: #f7f8ff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.08);
+        }
+
+        .analysis-list h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .analysis-list ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .analysis-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e8ecff;
+            color: #333;
+        }
+
+        .analysis-list li:last-child {
+            border-bottom: none;
+        }
         
         .stat-label {
             font-size: 0.9em;
@@ -248,6 +298,45 @@
             </div>
         </header>
         
+        <section class="analysis-section">
+            <h2>🔍 Model Analysis Summary</h2>
+            <div class="analysis-cards">
+                <div class="stat-card">
+                    <div class="stat-label">Average Absolute Error</div>
+                    <div class="stat-value" id="avgError">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Directional Accuracy</div>
+                    <div class="stat-value" id="directionalAccuracy">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">50% Interval Hit Rate</div>
+                    <div class="stat-value" id="intervalHitRate">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Mean Z-Score</div>
+                    <div class="stat-value" id="meanZScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Median Z-Score</div>
+                    <div class="stat-value" id="medianZScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Average ATM IV</div>
+                    <div class="stat-value" id="avgIv">-</div>
+                </div>
+            </div>
+
+            <div class="analysis-list">
+                <h3>Top 5 Best Predictions</h3>
+                <ul id="bestPredictions"></ul>
+            </div>
+            <div class="analysis-list">
+                <h3>Top 5 Largest Errors</h3>
+                <ul id="worstPredictions"></ul>
+            </div>
+        </section>
+
         <div class="controls">
             <input type="text" id="searchInput" placeholder="Search by symbol, company name...">
             <select id="filterColumn">
@@ -326,6 +415,10 @@
                 createTableHeaders(result.columns);
                 populateColumnFilter(result.columns);
 
+                const summary = result.summary || calculateSummary(result);
+                renderAnalysisSummary(summary);
+                renderTopPredictionLists(originalData, result.columns);
+
                 // Display data
                 loading.style.display = 'none';
                 document.getElementById('dataTable').style.display = 'table';
@@ -364,6 +457,93 @@
                 option.value = col;
                 option.textContent = col;
                 filterColumn.appendChild(option);
+            });
+        }
+
+        function findColumn(columns, keywords) {
+            return columns.find(col => keywords.some(keyword => col.toLowerCase().includes(keyword)));
+        }
+
+        function formatValue(value, decimals = 2) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '-';
+            }
+            return typeof value === 'number'
+                ? value.toLocaleString(undefined, { maximumFractionDigits: decimals })
+                : value;
+        }
+
+        function calculateSummary(result) {
+            const rows = result.data || originalData;
+            const safeNumbers = (field) => rows
+                .map(row => row[field])
+                .filter(val => typeof val === 'number');
+
+            const mean = (field) => {
+                const values = safeNumbers(field);
+                return values.length ? values.reduce((sum, val) => sum + val, 0) / values.length : null;
+            };
+
+            const percentTrue = (field) => {
+                const values = rows
+                    .map(row => row[field])
+                    .filter(val => val !== null && val !== undefined);
+                const trueCount = values.filter(val => val === 1 || val === true).length;
+                return values.length ? (trueCount / values.length) * 100 : null;
+            };
+
+            const median = (field) => {
+                const values = safeNumbers(field).sort((a, b) => a - b);
+                if (!values.length) return null;
+                const mid = Math.floor(values.length / 2);
+                return values.length % 2 === 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+            };
+
+            return {
+                avg_abs_error_pct: mean('abs_error_pct'),
+                directional_accuracy_pct: percentTrue('pdf_directional_correct'),
+                interval_hit_rate_pct: percentTrue('landed_in_50_pct_interval'),
+                mean_z_score: mean('z_score'),
+                median_z_score: median('z_score'),
+                avg_atm_iv: mean('ATM IV'),
+            };
+        }
+
+        function renderAnalysisSummary(summary) {
+            document.getElementById('avgError').textContent = `${formatValue(summary.avg_abs_error_pct)}%`;
+            document.getElementById('directionalAccuracy').textContent = `${formatValue(summary.directional_accuracy_pct)}%`;
+            document.getElementById('intervalHitRate').textContent = `${formatValue(summary.interval_hit_rate_pct)}%`;
+            document.getElementById('meanZScore').textContent = formatValue(summary.mean_z_score, 3);
+            document.getElementById('medianZScore').textContent = formatValue(summary.median_z_score, 3);
+            document.getElementById('avgIv').textContent = formatValue(summary.avg_atm_iv, 4);
+        }
+
+        function renderTopPredictionLists(data, columns) {
+            const tickerColumn = findColumn(columns, ['ticker', 'symbol']);
+            const valueColumn = 'abs_error_pct';
+            const validRows = data.filter(row => typeof row[valueColumn] === 'number');
+            const sortedRows = validRows.sort((a, b) => a[valueColumn] - b[valueColumn]);
+
+            const best = sortedRows.slice(0, 5);
+            const worst = sortedRows.slice(-5).reverse();
+
+            const bestList = document.getElementById('bestPredictions');
+            const worstList = document.getElementById('worstPredictions');
+            bestList.innerHTML = '';
+            worstList.innerHTML = '';
+
+            best.forEach(row => {
+                const li = document.createElement('li');
+                const ticker = row[tickerColumn] || 'Unknown';
+                li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
+                bestList.appendChild(li);
+            });
+
+            worst.forEach(row => {
+                const li = document.createElement('li');
+                const ticker = row[tickerColumn] || 'Unknown';
+                li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
+                worstList.appendChild(li);
             });
         }
         function populateValueFilter(column) {
