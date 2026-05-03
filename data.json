@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-03 04:08:00",
+  "lastUpdated": "2026-05-03 04:41:07",
   "dataCount": 12301,
   "columns": [
     "date",
@@ -40,7 +40,75 @@
     "directional_accuracy_pct": 32.56,
     "interval_hit_rate_pct": 30.24,
     "avg_atm_iv": 0.4188,
-    "avg_expected_std_pct": 0.09
+    "avg_expected_std_pct": 0.09,
+    "confidence_distribution": {
+      "very_high": 4,
+      "high": 122,
+      "moderate": 162,
+      "low": 206
+    },
+    "top_confident_predictions": [
+      {
+        "ticker": "NTRS",
+        "direction": "up",
+        "confidence": 0.95,
+        "reliability": 1.0,
+        "price": 141.9,
+        "expected_price": 145.0,
+        "pct_change": 2.3,
+        "expiry": "2026-01-16"
+      }
+    ],
+    "statistics": {
+      "normality_testing": {
+        "n": 8093,
+        "mean": -0.299,
+        "median": -0.2002,
+        "std_dev": 1.5701,
+        "skewness": -1.4551,
+        "kurtosis": 26.003,
+        "shapiro_wilk_p": 0.0,
+        "dagostino_k2_p": 0.0,
+        "anderson_darling_reject": true,
+        "jarque_bera_p": 0.0,
+        "kolmogorov_smirnov_p": 0.0
+      },
+      "tail_behavior": {
+        "beyond_z2_empirical": 11.95,
+        "beyond_z2_normal": 4.55,
+        "beyond_z3_empirical": 4.98,
+        "beyond_z3_normal": 0.27
+      },
+      "feature_correlations_reliability": [
+        {
+          "feature": "ATM Implied Volatility",
+          "t_stat": 0.69,
+          "p_value": 0.4927
+        },
+        {
+          "feature": "Expected Std Dev (% of price)",
+          "t_stat": 0.12,
+          "p_value": 0.9032
+        },
+        {
+          "feature": "Avg |Z-Score|",
+          "t_stat": -5.82,
+          "p_value": 0.0
+        }
+      ],
+      "feature_correlations_accuracy": [
+        {
+          "feature": "ATM Implied Volatility",
+          "r": 0.0597,
+          "p": 0.1863
+        },
+        {
+          "feature": "Expected Std Dev (% of price)",
+          "r": 0.0033,
+          "p": 0.9414
+        }
+      ]
+    }
   },
   "data": [
     {

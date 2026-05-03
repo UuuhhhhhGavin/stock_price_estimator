@@ -67,46 +67,92 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
         }
 
-        .analysis-section h2 {
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            color: #333;
-        }
-
-        .analysis-cards {
+        .analysis-split {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
 
-        .analysis-list {
-            margin-top: 20px;
+        .left-panel, .right-panel {
             background: #f7f8ff;
             padding: 20px;
             border-radius: 10px;
             box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.08);
         }
 
-        .analysis-list h3 {
-            margin-bottom: 10px;
-            color: #333;
-            font-size: 1.1em;
+        .confidence-distribution {
+            margin-bottom: 20px;
         }
 
-        .analysis-list ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
+        .confidence-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        .analysis-list li {
-            padding: 8px 0;
+        .confidence-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .confidence-item .label {
+            width: 150px;
+            font-weight: 600;
+        }
+
+        .bar {
+            flex: 1;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .bar .fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .count {
+            width: 50px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .stats-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stats-panel {
+            background: #f7f8ff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.08);
+        }
+
+        .stats-full {
+            margin-bottom: 20px;
+        }
+
+        .stats-full table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .stats-full th, .stats-full td {
+            padding: 8px 12px;
             border-bottom: 1px solid #e8ecff;
-            color: #333;
+            text-align: left;
         }
 
-        .analysis-list li:last-child {
-            border-bottom: none;
+        .stats-full th {
+            background: #667eea;
+            color: white;
         }
         
         .stat-label {
@@ -300,83 +346,156 @@
         
         <section class="analysis-section">
             <h2>🔍 Model Analysis Summary</h2>
-            <div class="analysis-cards">
-                <div class="stat-card">
-                    <div class="stat-label">Average Absolute Error</div>
-                    <div class="stat-value" id="avgError">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Directional Accuracy</div>
-                    <div class="stat-value" id="directionalAccuracy">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">50% Interval Hit Rate</div>
-                    <div class="stat-value" id="intervalHitRate">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Mean Z-Score</div>
-                    <div class="stat-value" id="meanZScore">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Median Z-Score</div>
-                    <div class="stat-value" id="medianZScore">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Average ATM IV</div>
-                    <div class="stat-value" id="avgIv">-</div>
+            <div class="confidence-distribution">
+                <h3>Confidence Distribution</h3>
+                <div class="confidence-bars">
+                    <div class="confidence-item">
+                        <span class="label">Very High (80-95%)</span>
+                        <div class="bar">
+                            <div class="fill" style="width: calc(<span id="confVeryHigh">0</span>% / 4 * 100%)"></div>
+                        </div>
+                        <span class="count" id="confVeryHighCount">0</span>
+                    </div>
+                    <div class="confidence-item">
+                        <span class="label">High (60-80%)</span>
+                        <div class="bar">
+                            <div class="fill" style="width: calc(<span id="confHigh">0</span>% / 4 * 100%)"></div>
+                        </div>
+                        <span class="count" id="confHighCount">0</span>
+                    </div>
+                    <div class="confidence-item">
+                        <span class="label">Moderate (50-60%)</span>
+                        <div class="bar">
+                            <div class="fill" style="width: calc(<span id="confModerate">0</span>% / 4 * 100%)"></div>
+                        </div>
+                        <span class="count" id="confModerateCount">0</span>
+                    </div>
+                    <div class="confidence-item">
+                        <span class="label">Low (&lt;50%)</span>
+                        <div class="bar">
+                            <div class="fill" style="width: calc(<span id="confLow">0</span>% / 4 * 100%)"></div>
+                        </div>
+                        <span class="count" id="confLowCount">0</span>
+                    </div>
                 </div>
             </div>
-
-            <div class="analysis-list">
-                <h3>Top 5 Best Predictions</h3>
-                <ul id="bestPredictions"></ul>
-            </div>
-            <div class="analysis-list">
-                <h3>Top 5 Largest Errors</h3>
-                <ul id="worstPredictions"></ul>
+            <div class="analysis-split">
+                <div class="left-panel">
+                    <h3>Top 15 Most Confident Predictions</h3>
+                    <table id="topPredictionsTable">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Direction</th>
+                                <th>Confidence</th>
+                                <th>Reliability</th>
+                                <th>Price</th>
+                                <th>Expected Price</th>
+                                <th>% Chg</th>
+                                <th>Expiry</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="right-panel">
+                    <h3>Stock Detail View</h3>
+                    <select id="stockSelector">
+                        <option value="">Select a stock…</option>
+                    </select>
+                    <button type="button" onclick="clearStockSelection()">Clear stock</button>
+                    <div class="analysis-cards" id="stockDetailCards" style="display: none;">
+                        <div class="stat-card">
+                            <div class="stat-label">Ticker</div>
+                            <div class="stat-value" id="detailTicker">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Latest Date</div>
+                            <div class="stat-value" id="detailDate">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Latest Z-Score</div>
+                            <div class="stat-value" id="detailZScore">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Latest Abs Error</div>
+                            <div class="stat-value" id="detailAbsError">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Direction Correct</div>
+                            <div class="stat-value" id="detailDirectionCorrect">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">50% Interval Hit</div>
+                            <div class="stat-value" id="detailIntervalHit">-</div>
+                        </div>
+                    </div>
+                    <div class="analysis-list" id="stockHistorySection" style="display: none;">
+                        <h3>Recent Z-Score History</h3>
+                        <table id="stockHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Z-Score</th>
+                                    <th>Abs Error %</th>
+                                    <th>Direction Correct</th>
+                                    <th>50% Hit</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <section class="analysis-section" id="stockDetailSection" style="display: none;">
-            <h2>📈 Stock Detail View</h2>
-            <div class="analysis-cards">
-                <div class="stat-card">
-                    <div class="stat-label">Ticker</div>
-                    <div class="stat-value" id="detailTicker">-</div>
+        <section class="analysis-section" id="statisticsSection">
+            <h2>📊 Model Statistics</h2>
+            <div class="stats-split">
+                <div class="stats-panel">
+                    <h3>Normality Testing</h3>
+                    <table id="normalityTable">
+                        <tbody>
+                            <tr><td>N</td><td id="normN">-</td></tr>
+                            <tr><td>Mean</td><td id="normMean">-</td></tr>
+                            <tr><td>Median</td><td id="normMedian">-</td></tr>
+                            <tr><td>Std Dev</td><td id="normStdDev">-</td></tr>
+                            <tr><td>Skewness</td><td id="normSkewness">-</td></tr>
+                            <tr><td>Kurtosis</td><td id="normKurtosis">-</td></tr>
+                            <tr><td>Shapiro-Wilk p</td><td id="normShapiro">-</td></tr>
+                            <tr><td>D'Agostino K2 p</td><td id="normDagostino">-</td></tr>
+                            <tr><td>Anderson-Darling</td><td id="normAnderson">-</td></tr>
+                            <tr><td>Jarque-Bera p</td><td id="normJarque">-</td></tr>
+                            <tr><td>Kolmogorov-Smirnov p</td><td id="normKS">-</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">Latest Date</div>
-                    <div class="stat-value" id="detailDate">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Latest Z-Score</div>
-                    <div class="stat-value" id="detailZScore">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Latest Abs Error</div>
-                    <div class="stat-value" id="detailAbsError">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Direction Correct</div>
-                    <div class="stat-value" id="detailDirectionCorrect">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">50% Interval Hit</div>
-                    <div class="stat-value" id="detailIntervalHit">-</div>
+                <div class="stats-panel">
+                    <h3>Tail Behavior</h3>
+                    <table id="tailTable">
+                        <tbody>
+                            <tr><td>Beyond |z|>2 Empirical</td><td id="tailZ2Emp">-</td></tr>
+                            <tr><td>Beyond |z|>2 Normal</td><td id="tailZ2Norm">-</td></tr>
+                            <tr><td>Beyond |z|>3 Empirical</td><td id="tailZ3Emp">-</td></tr>
+                            <tr><td>Beyond |z|>3 Normal</td><td id="tailZ3Norm">-</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-
-            <div class="analysis-list">
-                <h3>Recent Z-Score History</h3>
-                <table id="stockHistoryTable">
+            <div class="stats-full">
+                <h3>Feature Correlations with Reliability</h3>
+                <table id="reliabilityCorrelationsTable">
                     <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Z-Score</th>
-                            <th>Abs Error %</th>
-                            <th>Direction Correct</th>
-                            <th>50% Hit</th>
-                        </tr>
+                        <tr><th>Feature</th><th>t-stat</th><th>p-value</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="stats-full">
+                <h3>Feature Correlations with Directional Accuracy</h3>
+                <table id="accuracyCorrelationsTable">
+                    <thead>
+                        <tr><th>Feature</th><th>r</th><th>p</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -384,12 +503,6 @@
         </section>
 
         <div class="controls">
-            <select id="stockSelector">
-                <option value="">Select a stock…</option>
-            </select>
-            <button type="button" onclick="clearStockSelection()">Clear stock</button>
-            <button type="button" onclick="showFullDataset()">Show full dataset</button>
-
             <input type="text" id="searchInput" placeholder="Search by symbol, company name...">
             <select id="filterColumn">
                 <option value="">Filter by column…</option>
@@ -476,6 +589,9 @@
 
                 const summary = result.summary || calculateSummary(result);
                 renderAnalysisSummary(summary);
+                renderConfidenceDistribution(summary.confidence_distribution);
+                renderTopConfidentPredictions(summary.top_confident_predictions);
+                renderStatistics(summary.statistics);
                 renderTopPredictionLists(originalData, result.columns);
                 renderStockDetails();
 
@@ -637,6 +753,86 @@
             document.getElementById('avgIv').textContent = formatValue(summary.avg_atm_iv, 4);
         }
 
+        function renderConfidenceDistribution(conf) {
+            if (!conf) return;
+            document.getElementById('confVeryHighCount').textContent = conf.very_high;
+            document.getElementById('confHighCount').textContent = conf.high;
+            document.getElementById('confModerateCount').textContent = conf.moderate;
+            document.getElementById('confLowCount').textContent = conf.low;
+            // Update bar widths
+            const total = conf.very_high + conf.high + conf.moderate + conf.low;
+            document.querySelector('.confidence-item:nth-child(1) .fill').style.width = `${(conf.very_high / total) * 100}%`;
+            document.querySelector('.confidence-item:nth-child(2) .fill').style.width = `${(conf.high / total) * 100}%`;
+            document.querySelector('.confidence-item:nth-child(3) .fill').style.width = `${(conf.moderate / total) * 100}%`;
+            document.querySelector('.confidence-item:nth-child(4) .fill').style.width = `${(conf.low / total) * 100}%`;
+        }
+
+        function renderTopConfidentPredictions(predictions) {
+            const tbody = document.querySelector('#topPredictionsTable tbody');
+            tbody.innerHTML = '';
+            if (!predictions) return;
+            predictions.forEach(pred => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${pred.ticker}</td>
+                    <td>${pred.direction}</td>
+                    <td>${formatValue(pred.confidence * 100)}%</td>
+                    <td>${formatValue(pred.reliability * 100)}%</td>
+                    <td>${formatValue(pred.price)}</td>
+                    <td>${formatValue(pred.expected_price)}</td>
+                    <td>${formatValue(pred.pct_change)}%</td>
+                    <td>${pred.expiry}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderStatistics(stats) {
+            if (!stats) return;
+            const norm = stats.normality_testing;
+            document.getElementById('normN').textContent = norm.n;
+            document.getElementById('normMean').textContent = formatValue(norm.mean, 4);
+            document.getElementById('normMedian').textContent = formatValue(norm.median, 4);
+            document.getElementById('normStdDev').textContent = formatValue(norm.std_dev, 4);
+            document.getElementById('normSkewness').textContent = formatValue(norm.skewness, 4);
+            document.getElementById('normKurtosis').textContent = formatValue(norm.kurtosis, 4);
+            document.getElementById('normShapiro').textContent = formatValue(norm.shapiro_wilk_p, 4);
+            document.getElementById('normDagostino').textContent = formatValue(norm.dagostino_k2_p, 4);
+            document.getElementById('normAnderson').textContent = norm.anderson_darling_reject ? 'Reject' : 'Accept';
+            document.getElementById('normJarque').textContent = formatValue(norm.jarque_bera_p, 4);
+            document.getElementById('normKS').textContent = formatValue(norm.kolmogorov_smirnov_p, 4);
+
+            const tail = stats.tail_behavior;
+            document.getElementById('tailZ2Emp').textContent = `${tail.beyond_z2_empirical}%`;
+            document.getElementById('tailZ2Norm').textContent = `${tail.beyond_z2_normal}%`;
+            document.getElementById('tailZ3Emp').textContent = `${tail.beyond_z3_empirical}%`;
+            document.getElementById('tailZ3Norm').textContent = `${tail.beyond_z3_normal}%`;
+
+            const relTable = document.querySelector('#reliabilityCorrelationsTable tbody');
+            relTable.innerHTML = '';
+            stats.feature_correlations_reliability.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.feature}</td>
+                    <td>${formatValue(item.t_stat, 2)}</td>
+                    <td>${formatValue(item.p_value, 4)}</td>
+                `;
+                relTable.appendChild(tr);
+            });
+
+            const accTable = document.querySelector('#accuracyCorrelationsTable tbody');
+            accTable.innerHTML = '';
+            stats.feature_correlations_accuracy.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.feature}</td>
+                    <td>${formatValue(item.r, 4)}</td>
+                    <td>${formatValue(item.p, 4)}</td>
+                `;
+                accTable.appendChild(tr);
+            });
+        }
+
         function uniqueTickerRows(rows, tickerKey, valueKey, compareFn) {
             const bestByTicker = new Map();
 
@@ -758,18 +954,21 @@
         }
 
         function renderStockDetails() {
-            const section = document.getElementById('stockDetailSection');
+            const cards = document.getElementById('stockDetailCards');
+            const history = document.getElementById('stockHistorySection');
             const historyBody = document.querySelector('#stockHistoryTable tbody');
             historyBody.innerHTML = '';
 
             if (!selectedTicker || !tickerColumn) {
-                section.style.display = 'none';
+                cards.style.display = 'none';
+                history.style.display = 'none';
                 return;
             }
 
             const rows = originalData.filter(row => row[tickerColumn] === selectedTicker);
             if (!rows.length) {
-                section.style.display = 'none';
+                cards.style.display = 'none';
+                history.style.display = 'none';
                 return;
             }
 
@@ -799,7 +998,8 @@
                 historyBody.appendChild(tr);
             });
 
-            section.style.display = 'block';
+            cards.style.display = 'grid';
+            history.style.display = 'block';
         }
 
         function updateSearchSummary() {
