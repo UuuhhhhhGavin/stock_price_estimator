@@ -7,6 +7,11 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+import sys
+
+# Add parent directory to path to import stock_analyzer
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from stock_analyzer import run_zscore_analysis, run_accuracy_analysis
 
 
 def convert_excel_to_json(excel_file, output_dir='docs'):
@@ -42,6 +47,13 @@ def convert_excel_to_json(excel_file, output_dir='docs'):
                     row_dict[col] = str(val) if not isinstance(val, (int, float, bool, type(None))) else val
             data.append(row_dict)
         
+        # Run analysis functions to get real statistics
+        print("Running z-score analysis...")
+        zscore_stats = run_zscore_analysis(excel_file)
+        
+        print("Running accuracy analysis...")
+        accuracy_stats = run_accuracy_analysis(excel_file)
+        
         # Create summary metadata for the website
         summary = {
             'avg_abs_error_pct': round(df['abs_error_pct'].dropna().mean(), 2) if 'abs_error_pct' in df.columns else None,
@@ -50,7 +62,7 @@ def convert_excel_to_json(excel_file, output_dir='docs'):
             'interval_hit_rate_pct': round((df['landed_in_50_pct_interval'] == 1).mean() * 100, 2) if 'landed_in_50_pct_interval' in df.columns else None,
             'avg_atm_iv': round(df['ATM IV'].dropna().mean(), 4) if 'ATM IV' in df.columns else None,
             'avg_expected_std_pct': round(df['expected_std_pct'].dropna().mean(), 2) if 'expected_std_pct' in df.columns else None,
-            # Confidence distribution (from analyzer output)
+            # Confidence distribution (hard-coded for now - would need to compute from indicator_confidence)
             'confidence_distribution': {
                 'very_high': 4,  # 80-95%
                 'high': 122,     # 60-80%
@@ -64,39 +76,16 @@ def convert_excel_to_json(excel_file, output_dir='docs'):
                 # Add more...
             ],
             # Statistics from analyzer
-            'statistics': {
-                'normality_testing': {
-                    'n': 8093,
-                    'mean': -0.2990,
-                    'median': -0.2002,
-                    'std_dev': 1.5701,
-                    'skewness': -1.4551,
-                    'kurtosis': 26.0030,
-                    'shapiro_wilk_p': 0.0,
-                    'dagostino_k2_p': 0.0,
-                    'anderson_darling_reject': True,
-                    'jarque_bera_p': 0.0,
-                    'kolmogorov_smirnov_p': 0.0
-                },
-                'tail_behavior': {
-                    'beyond_z2_empirical': 11.95,
-                    'beyond_z2_normal': 4.55,
-                    'beyond_z3_empirical': 4.98,
-                    'beyond_z3_normal': 0.27
-                },
-                'feature_correlations_reliability': [
-                    {'feature': 'ATM Implied Volatility', 't_stat': 0.69, 'p_value': 0.4927},
-                    {'feature': 'Expected Std Dev (% of price)', 't_stat': 0.12, 'p_value': 0.9032},
-                    {'feature': 'Avg |Z-Score|', 't_stat': -5.82, 'p_value': 0.0},
-                    # Add more...
-                ],
-                'feature_correlations_accuracy': [
-                    {'feature': 'ATM Implied Volatility', 'r': 0.0597, 'p': 0.1863},
-                    {'feature': 'Expected Std Dev (% of price)', 'r': 0.0033, 'p': 0.9414},
-                    # Add more...
-                ]
-            }
+            'statistics': {}
         }
+        
+        # Add z-score analysis results if available
+        if zscore_stats:
+            summary['statistics'].update(zscore_stats)
+        
+        # Add accuracy analysis results if available
+        if accuracy_stats:
+            summary['statistics'].update(accuracy_stats)
 
         # Create output JSON structure
         output = {

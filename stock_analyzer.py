@@ -840,7 +840,7 @@ def run_zscore_analysis(excel_path: str):
     realized = df[df['pdf_directional_correct'].notna() & df['z_score'].notna()].copy()
     if realized.empty:
         print("No realized observations with z-scores yet — skipping z-score analysis.")
-        return
+        return None
     realized['abs_z'] = realized['z_score'].abs()
 
     print(f"Observations with both directional accuracy and z-score: {len(realized)}")
@@ -933,7 +933,7 @@ def run_zscore_analysis(excel_path: str):
     z_scores = realized['z_score'].dropna().values
     if len(z_scores) < 20:
         print("Not enough z-scores for normality testing — skipping section 6.")
-        return
+        return None
 
     print("=" * 80)
     print("NORMALITY TESTING: Is the z-score distribution actually Gaussian?")
@@ -992,6 +992,33 @@ def run_zscore_analysis(excel_path: str):
         normal_upper = stats.norm.ppf(1 - (100 - conf) / 200)
         print(f"  {conf}% interval:  empirical=[{lower:+.3f}, {upper:+.3f}]  "
               f"normal=[{normal_lower:+.3f}, {normal_upper:+.3f}]")
+
+    # Return computed statistics
+    return {
+        'normality_testing': {
+            'n': len(z_scores),
+            'mean': float(np.mean(z_scores)),
+            'median': float(np.median(z_scores)),
+            'std_dev': float(np.std(z_scores)),
+            'skewness': float(stats.skew(z_scores)),
+            'kurtosis': float(stats.kurtosis(z_scores)),
+            'shapiro_wilk_p': float(sw_p),
+            'dagostino_k2_p': float(dag_p),
+            'anderson_darling_reject': bool(ad_rejects),
+            'jarque_bera_p': float(jb_p),
+            'kolmogorov_smirnov_p': float(ks_p)
+        },
+        'tail_behavior': {
+            'beyond_z2_empirical': float(beyond_2),
+            'beyond_z2_normal': float(expected_beyond_2),
+            'beyond_z3_empirical': float(beyond_3),
+            'beyond_z3_normal': float(expected_beyond_3)
+        },
+        'overall_stats': {
+            'mean_z': float(realized['z_score'].mean()),
+            'median_z': float(realized['z_score'].median())
+        }
+    }
 
 
 # =============================================================================
@@ -1087,6 +1114,10 @@ def run_accuracy_analysis(excel_path: str, min_obs: int = 8):
         ('n_obs', 'Number of Observations'),
     ]
 
+    # Collect feature correlations for return
+    feature_correlations_reliability = []
+    feature_correlations_accuracy = []
+
     print("=" * 100)
     print(f"{'Feature':<35s}  {'Reliable(>=65%)':<18s}  {'Middle(40-60%)':<18s}  "
           f"{'Unreliable(<=35%)':<18s}  {'t-stat':>8s}  {'p-value':>8s}")
@@ -1105,6 +1136,11 @@ def run_accuracy_analysis(excel_path: str, min_obs: int = 8):
         sig = "***" if p_val < 0.001 else "**" if p_val < 0.01 else "*" if p_val < 0.05 else ""
         print(f"  {label:<33s}  {r_mean:>16.4f}  {m_mean:>16.4f}  {u_mean:>16.4f}  "
               f"{t_stat:>8.2f}  {p_val:>7.4f} {sig}")
+        feature_correlations_reliability.append({
+            'feature': label,
+            't_stat': float(t_stat) if not np.isnan(t_stat) else None,
+            'p_value': float(p_val) if not np.isnan(p_val) else None
+        })
     print()
 
     print("=" * 80)
@@ -1116,6 +1152,11 @@ def run_accuracy_analysis(excel_path: str, min_obs: int = 8):
             corr, p = stats.pearsonr(valid[feat], valid['dir_accuracy'])
             sig = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else ""
             print(f"  {label:<35s}  r={corr:>+.4f}  p={p:.4f} {sig}")
+            feature_correlations_accuracy.append({
+                'feature': label,
+                'r': float(corr),
+                'p': float(p)
+            })
     print()
 
     # Accuracy by predicted move size
@@ -1167,6 +1208,12 @@ def run_accuracy_analysis(excel_path: str, min_obs: int = 8):
             corr, p = stats.pointbiserialr(y, obs_data[feat])
             sig = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else ""
             print(f"  {feat:<25s}  r={corr:>+.4f}  p={p:.4f} {sig}")
+
+    # Return computed statistics
+    return {
+        'feature_correlations_reliability': feature_correlations_reliability,
+        'feature_correlations_accuracy': feature_correlations_accuracy
+    }
 
 
 # =============================================================================
