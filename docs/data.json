@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
-  "lastUpdated": "2026-05-02 23:45:28",
-=======
-  "lastUpdated": "2026-05-03 04:41:07",
->>>>>>> 434b891ca08fb82e90726b9eb8ad93db6df6d2c5
+  "lastUpdated": "2026-05-03 04:55:55",
   "dataCount": 12301,
   "columns": [
     "date",
@@ -75,7 +71,7 @@
         "dagostino_k2_p": 0.0,
         "anderson_darling_reject": true,
         "jarque_bera_p": 0.0,
-        "kolmogorov_smirnov_p": 5.42577017031683e-64
+        "kolmogorov_smirnov_p": 5.425770170316834e-64
       },
       "tail_behavior": {
         "beyond_z2_empirical": 11.948597553441246,
@@ -91,7 +87,7 @@
         {
           "feature": "ATM Implied Volatility",
           "t_stat": 0.6872304679186583,
-          "p_value": 0.49265567224824613
+          "p_value": 0.49265567224824625
         },
         {
           "feature": "Expected Std Dev (% of price)",
@@ -101,7 +97,7 @@
         {
           "feature": "Avg |Z-Score|",
           "t_stat": -5.816757430504467,
-          "p_value": 2.3677850490659972e-08
+          "p_value": 2.3677850490659975e-08
         },
         {
           "feature": "Avg Absolute Error %",
@@ -121,7 +117,7 @@
         {
           "feature": "ATM Delta",
           "t_stat": -1.0286930751027927,
-          "p_value": 0.3050305326122302
+          "p_value": 0.3050305326122301
         },
         {
           "feature": "ATM Contract Cost ($)",
@@ -167,13 +163,13 @@
       "feature_correlations_accuracy": [
         {
           "feature": "ATM Implied Volatility",
-          "r": 0.05974198548504574,
+          "r": 0.059741985485045744,
           "p": 0.18630120681924076
         },
         {
           "feature": "Expected Std Dev (% of price)",
-          "r": 0.0033346234317726963,
-          "p": 0.9413675323959098
+          "r": 0.003334623431772697,
+          "p": 0.9413675323959099
         },
         {
           "feature": "Avg |Z-Score|",
@@ -182,48 +178,48 @@
         },
         {
           "feature": "Avg Absolute Error %",
-          "r": -0.2893903437913907,
-          "p": 6.297703957646549e-11
+          "r": -0.2893903437913908,
+          "p": 6.29770395764655e-11
         },
         {
           "feature": "Avg |Predicted % Change|",
-          "r": -0.07727155866739847,
+          "r": -0.07727155866739849,
           "p": 0.08718873348867086
         },
         {
           "feature": "Avg Predicted % Change (signed)",
-          "r": -0.09948055761517526,
+          "r": -0.09948055761517528,
           "p": 0.027510732059282766
         },
         {
           "feature": "ATM Delta",
-          "r": -0.03290223967252868,
+          "r": -0.0329022396725287,
           "p": 0.4669787256399929
         },
         {
           "feature": "ATM Contract Cost ($)",
-          "r": -0.013916705813499226,
+          "r": -0.013916705813499233,
           "p": 0.7583848085297554
         },
         {
           "feature": "Avg Trading Volume",
-          "r": 0.0322941620122739,
+          "r": 0.032294162012273905,
           "p": 0.4752561450878172
         },
         {
           "feature": "Avg Stock Price ($)",
-          "r": -0.0071400682780860675,
+          "r": -0.0071400682780860605,
           "p": 0.8746048637828105
         },
         {
           "feature": "Landed in 50% Interval",
-          "r": 0.3628724209911338,
+          "r": 0.3628724209911337,
           "p": 1.1521211909558225e-16
         },
         {
           "feature": "Number of Observations",
-          "r": 0.04133755734355265,
-          "p": 0.3606983709733335
+          "r": 0.041337557343552676,
+          "p": 0.36069837097332264
         }
       ]
     }
