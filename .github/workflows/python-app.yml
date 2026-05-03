@@ -48,7 +48,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Run the stock analysis script
       run: |
-        python github_action_stock_pdf_tracking.py
+        python stock_analyzer.py
     - name: Generate JSON for GitHub Pages
       run: |
         python scripts/convert_excel_to_json.py
