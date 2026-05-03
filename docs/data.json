@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-03 01:13:13",
+  "lastUpdated": "2026-05-03 02:37:21",
   "dataCount": 12301,
   "columns": [
     "date",
@@ -26,6 +26,14 @@
     "z_score",
     "abs_error_pct"
   ],
+  "summary": {
+    "avg_abs_error_pct": 7.55,
+    "median_z_score": -0.2,
+    "directional_accuracy_pct": 32.56,
+    "interval_hit_rate_pct": 30.24,
+    "avg_atm_iv": 0.4188,
+    "avg_expected_std_pct": 0.09
+  },
   "data": [
     {
       "date": "2026-01-02",
