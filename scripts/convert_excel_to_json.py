@@ -42,11 +42,22 @@ def convert_excel_to_json(excel_file, output_dir='docs'):
                     row_dict[col] = str(val) if not isinstance(val, (int, float, bool, type(None))) else val
             data.append(row_dict)
         
+        # Create summary metadata for the website
+        summary = {
+            'avg_abs_error_pct': round(df['abs_error_pct'].dropna().mean(), 2) if 'abs_error_pct' in df.columns else None,
+            'median_z_score': round(df['z_score'].dropna().median(), 2) if 'z_score' in df.columns else None,
+            'directional_accuracy_pct': round((df['pdf_directional_correct'] == 1).mean() * 100, 2) if 'pdf_directional_correct' in df.columns else None,
+            'interval_hit_rate_pct': round((df['landed_in_50_pct_interval'] == 1).mean() * 100, 2) if 'landed_in_50_pct_interval' in df.columns else None,
+            'avg_atm_iv': round(df['ATM IV'].dropna().mean(), 4) if 'ATM IV' in df.columns else None,
+            'avg_expected_std_pct': round(df['expected_std_pct'].dropna().mean(), 2) if 'expected_std_pct' in df.columns else None,
+        }
+
         # Create output JSON structure
         output = {
             'lastUpdated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'dataCount': len(data),
             'columns': list(df.columns),
+            'summary': summary,
             'data': data
         }
         
