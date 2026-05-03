@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-03 04:41:07",
+  "lastUpdated": "2026-05-03 04:55:55",
   "dataCount": 12301,
   "columns": [
     "date",
@@ -62,50 +62,164 @@
     "statistics": {
       "normality_testing": {
         "n": 8093,
-        "mean": -0.299,
-        "median": -0.2002,
-        "std_dev": 1.5701,
-        "skewness": -1.4551,
-        "kurtosis": 26.003,
+        "mean": -0.2990391707994973,
+        "median": -0.2001790952386219,
+        "std_dev": 1.570062512128344,
+        "skewness": -1.4551286786125999,
+        "kurtosis": 26.003016709603163,
         "shapiro_wilk_p": 0.0,
         "dagostino_k2_p": 0.0,
         "anderson_darling_reject": true,
         "jarque_bera_p": 0.0,
-        "kolmogorov_smirnov_p": 0.0
+        "kolmogorov_smirnov_p": 5.425770170316834e-64
       },
       "tail_behavior": {
-        "beyond_z2_empirical": 11.95,
-        "beyond_z2_normal": 4.55,
-        "beyond_z3_empirical": 4.98,
-        "beyond_z3_normal": 0.27
+        "beyond_z2_empirical": 11.948597553441246,
+        "beyond_z2_normal": 4.550026389635842,
+        "beyond_z3_empirical": 4.97961201037934,
+        "beyond_z3_normal": 0.2699796063260207
+      },
+      "overall_stats": {
+        "mean_z": -0.2990391707994973,
+        "median_z": -0.2001790952386219
       },
       "feature_correlations_reliability": [
         {
           "feature": "ATM Implied Volatility",
-          "t_stat": 0.69,
-          "p_value": 0.4927
+          "t_stat": 0.6872304679186583,
+          "p_value": 0.49265567224824625
         },
         {
           "feature": "Expected Std Dev (% of price)",
-          "t_stat": 0.12,
-          "p_value": 0.9032
+          "t_stat": 0.12181740320448951,
+          "p_value": 0.903165971131711
         },
         {
           "feature": "Avg |Z-Score|",
-          "t_stat": -5.82,
-          "p_value": 0.0
+          "t_stat": -5.816757430504467,
+          "p_value": 2.3677850490659975e-08
+        },
+        {
+          "feature": "Avg Absolute Error %",
+          "t_stat": -5.11393120426918,
+          "p_value": 8.311099541212558e-07
+        },
+        {
+          "feature": "Avg |Predicted % Change|",
+          "t_stat": -1.056883326463965,
+          "p_value": 0.2922457678860435
+        },
+        {
+          "feature": "Avg Predicted % Change (signed)",
+          "t_stat": -1.2349389121195808,
+          "p_value": 0.21861781640928307
+        },
+        {
+          "feature": "ATM Delta",
+          "t_stat": -1.0286930751027927,
+          "p_value": 0.3050305326122301
+        },
+        {
+          "feature": "ATM Contract Cost ($)",
+          "t_stat": -0.005063511426618522,
+          "p_value": 0.9959648143097879
+        },
+        {
+          "feature": "Avg Trading Volume",
+          "t_stat": 1.73390098725776,
+          "p_value": 0.08481207357274663
+        },
+        {
+          "feature": "Avg Stock Price ($)",
+          "t_stat": 0.12067901781545066,
+          "p_value": 0.9040540955572849
+        },
+        {
+          "feature": "Put-Call Ratio (Volume)",
+          "t_stat": null,
+          "p_value": null
+        },
+        {
+          "feature": "Put-Call Ratio (OI)",
+          "t_stat": null,
+          "p_value": null
+        },
+        {
+          "feature": "IV Skew (put-call)",
+          "t_stat": null,
+          "p_value": null
+        },
+        {
+          "feature": "Landed in 50% Interval",
+          "t_stat": 6.788104666279754,
+          "p_value": 1.0751055918218809e-10
+        },
+        {
+          "feature": "Number of Observations",
+          "t_stat": 0.21169423024874473,
+          "p_value": 0.8325400977511508
         }
       ],
       "feature_correlations_accuracy": [
         {
           "feature": "ATM Implied Volatility",
-          "r": 0.0597,
-          "p": 0.1863
+          "r": 0.059741985485045744,
+          "p": 0.18630120681924076
         },
         {
           "feature": "Expected Std Dev (% of price)",
-          "r": 0.0033,
-          "p": 0.9414
+          "r": 0.003334623431772697,
+          "p": 0.9413675323959099
+        },
+        {
+          "feature": "Avg |Z-Score|",
+          "r": -0.3236220680927027,
+          "p": 2.194256798834648e-13
+        },
+        {
+          "feature": "Avg Absolute Error %",
+          "r": -0.2893903437913908,
+          "p": 6.29770395764655e-11
+        },
+        {
+          "feature": "Avg |Predicted % Change|",
+          "r": -0.07727155866739849,
+          "p": 0.08718873348867086
+        },
+        {
+          "feature": "Avg Predicted % Change (signed)",
+          "r": -0.09948055761517528,
+          "p": 0.027510732059282766
+        },
+        {
+          "feature": "ATM Delta",
+          "r": -0.0329022396725287,
+          "p": 0.4669787256399929
+        },
+        {
+          "feature": "ATM Contract Cost ($)",
+          "r": -0.013916705813499233,
+          "p": 0.7583848085297554
+        },
+        {
+          "feature": "Avg Trading Volume",
+          "r": 0.032294162012273905,
+          "p": 0.4752561450878172
+        },
+        {
+          "feature": "Avg Stock Price ($)",
+          "r": -0.0071400682780860605,
+          "p": 0.8746048637828105
+        },
+        {
+          "feature": "Landed in 50% Interval",
+          "r": 0.3628724209911337,
+          "p": 1.1521211909558225e-16
+        },
+        {
+          "feature": "Number of Observations",
+          "r": 0.041337557343552676,
+          "p": 0.36069837097332264
         }
       ]
     }
