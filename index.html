@@ -337,7 +337,59 @@
             </div>
         </section>
 
+        <section class="analysis-section" id="stockDetailSection" style="display: none;">
+            <h2>📈 Stock Detail View</h2>
+            <div class="analysis-cards">
+                <div class="stat-card">
+                    <div class="stat-label">Ticker</div>
+                    <div class="stat-value" id="detailTicker">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latest Date</div>
+                    <div class="stat-value" id="detailDate">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latest Z-Score</div>
+                    <div class="stat-value" id="detailZScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latest Abs Error</div>
+                    <div class="stat-value" id="detailAbsError">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Direction Correct</div>
+                    <div class="stat-value" id="detailDirectionCorrect">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">50% Interval Hit</div>
+                    <div class="stat-value" id="detailIntervalHit">-</div>
+                </div>
+            </div>
+
+            <div class="analysis-list">
+                <h3>Recent Z-Score History</h3>
+                <table id="stockHistoryTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Z-Score</th>
+                            <th>Abs Error %</th>
+                            <th>Direction Correct</th>
+                            <th>50% Hit</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
         <div class="controls">
+            <select id="stockSelector">
+                <option value="">Select a stock…</option>
+            </select>
+            <button type="button" onclick="clearStockSelection()">Clear stock</button>
+            <button type="button" onclick="showFullDataset()">Show full dataset</button>
+
             <input type="text" id="searchInput" placeholder="Search by symbol, company name...">
             <select id="filterColumn">
                 <option value="">Filter by column…</option>
@@ -358,6 +410,7 @@
         </div>
         
         <div class="search-summary" id="searchSummary"></div>
+        <div class="search-summary" id="tableMessage">Select a stock or click “Show full dataset” to view the table.</div>
         
         <div class="table-wrapper">
             <div class="loading" id="loading">Loading data...</div>
@@ -380,6 +433,9 @@
         let filteredData = [];
         let currentPage = 1;
         let recordsPerPage = 25;
+        let tickerColumn = '';
+        let selectedTicker = '';
+        let showFullData = false;
 
         async function loadData() {
             const loading = document.getElementById('loading');
@@ -411,6 +467,9 @@
                 }).filter(s => s));
                 document.getElementById('stockCount').textContent = stocks.size.toLocaleString();
                 
+                tickerColumn = findColumn(result.columns, ['ticker', 'symbol']) || '';
+                populateStockSelector(result.columns);
+
                 // Create table headers
                 createTableHeaders(result.columns);
                 populateColumnFilter(result.columns);
@@ -418,10 +477,11 @@
                 const summary = result.summary || calculateSummary(result);
                 renderAnalysisSummary(summary);
                 renderTopPredictionLists(originalData, result.columns);
+                renderStockDetails();
 
                 // Display data
                 loading.style.display = 'none';
-                document.getElementById('dataTable').style.display = 'table';
+                updateTableVisibility();
                 displayTable();
                 
             } catch (error) {
@@ -462,6 +522,65 @@
 
         function findColumn(columns, keywords) {
             return columns.find(col => keywords.some(keyword => col.toLowerCase().includes(keyword)));
+        }
+
+        function populateStockSelector(columns) {
+            const stockSelector = document.getElementById('stockSelector');
+            stockSelector.innerHTML = '<option value="">Select a stock…</option>';
+            if (!tickerColumn) return;
+
+            const symbols = [...new Set(originalData.map(row => row[tickerColumn]).filter(Boolean))]
+                .sort((a, b) => String(a).localeCompare(String(b)));
+
+            symbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                stockSelector.appendChild(option);
+            });
+        }
+
+        function shouldShowFullTable() {
+            const searchActive = document.getElementById('searchInput').value.trim() !== '';
+            const filterActive = document.getElementById('filterColumn').value || document.getElementById('filterValue').value;
+            return showFullData || selectedTicker || searchActive || filterActive;
+        }
+
+        function updateTableVisibility() {
+            const table = document.getElementById('dataTable');
+            const message = document.getElementById('tableMessage');
+            const errorDiv = document.getElementById('errorDiv');
+
+            if (!shouldShowFullTable()) {
+                table.style.display = 'none';
+                errorDiv.style.display = 'none';
+                message.style.display = 'block';
+                message.textContent = 'Select a stock or click “Show full dataset” to view the table.';
+                return;
+            }
+
+            message.style.display = 'none';
+            errorDiv.style.display = 'none';
+            table.style.display = 'table';
+        }
+
+        function clearStockSelection() {
+            selectedTicker = '';
+            showFullData = false;
+            document.getElementById('stockSelector').value = '';
+            document.getElementById('stockSelector').blur();
+            filteredData = [...originalData];
+            renderStockDetails();
+            displayTable();
+        }
+
+        function showFullDataset() {
+            showFullData = true;
+            selectedTicker = '';
+            document.getElementById('stockSelector').value = '';
+            filteredData = [...originalData];
+            renderStockDetails();
+            displayTable();
         }
 
         function formatValue(value, decimals = 2) {
@@ -518,30 +637,50 @@
             document.getElementById('avgIv').textContent = formatValue(summary.avg_atm_iv, 4);
         }
 
-        function renderTopPredictionLists(data, columns) {
-            const tickerColumn = findColumn(columns, ['ticker', 'symbol']);
-            const valueColumn = 'abs_error_pct';
-            const validRows = data.filter(row => typeof row[valueColumn] === 'number');
-            const sortedRows = validRows.sort((a, b) => a[valueColumn] - b[valueColumn]);
+        function uniqueTickerRows(rows, tickerKey, valueKey, compareFn) {
+            const bestByTicker = new Map();
 
-            const best = sortedRows.slice(0, 5);
-            const worst = sortedRows.slice(-5).reverse();
+            rows.forEach(row => {
+                const ticker = row[tickerKey];
+                const value = row[valueKey];
+                if (!ticker || typeof value !== 'number' || Number.isNaN(value)) return;
+
+                const existing = bestByTicker.get(ticker);
+                if (!existing || compareFn(value, existing[valueKey])) {
+                    bestByTicker.set(ticker, row);
+                }
+            });
+
+            return Array.from(bestByTicker.values());
+        }
+
+        function renderTopPredictionLists(data, columns) {
+            const tickerKey = findColumn(columns, ['ticker', 'symbol']) || 'ticker';
+            const valueColumn = 'abs_error_pct';
+
+            const bestUnique = uniqueTickerRows(data, tickerKey, valueColumn, (value, existing) => value < existing)
+                .sort((a, b) => a[valueColumn] - b[valueColumn])
+                .slice(0, 5);
+
+            const worstUnique = uniqueTickerRows(data, tickerKey, valueColumn, (value, existing) => value > existing)
+                .sort((a, b) => b[valueColumn] - a[valueColumn])
+                .slice(0, 5);
 
             const bestList = document.getElementById('bestPredictions');
             const worstList = document.getElementById('worstPredictions');
             bestList.innerHTML = '';
             worstList.innerHTML = '';
 
-            best.forEach(row => {
+            bestUnique.forEach(row => {
                 const li = document.createElement('li');
-                const ticker = row[tickerColumn] || 'Unknown';
+                const ticker = row[tickerKey] || 'Unknown';
                 li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
                 bestList.appendChild(li);
             });
 
-            worst.forEach(row => {
+            worstUnique.forEach(row => {
                 const li = document.createElement('li');
-                const ticker = row[tickerColumn] || 'Unknown';
+                const ticker = row[tickerKey] || 'Unknown';
                 li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
                 worstList.appendChild(li);
             });
@@ -593,11 +732,16 @@
                 document.getElementById('errorDiv').style.display = 'block';
                 document.getElementById('errorDiv').className = 'error';
                 document.getElementById('errorDiv').innerHTML = 'No results found.';
+                document.getElementById('tableMessage').style.display = 'none';
                 return;
             }
             
-            document.getElementById('dataTable').style.display = 'table';
             document.getElementById('errorDiv').style.display = 'none';
+            updateTableVisibility();
+            
+            if (!shouldShowFullTable()) {
+                return;
+            }
             
             pageData.forEach(row => {
                 const tr = document.createElement('tr');
@@ -611,6 +755,51 @@
             
             updatePagination();
             updateSearchSummary();
+        }
+
+        function renderStockDetails() {
+            const section = document.getElementById('stockDetailSection');
+            const historyBody = document.querySelector('#stockHistoryTable tbody');
+            historyBody.innerHTML = '';
+
+            if (!selectedTicker || !tickerColumn) {
+                section.style.display = 'none';
+                return;
+            }
+
+            const rows = originalData.filter(row => row[tickerColumn] === selectedTicker);
+            if (!rows.length) {
+                section.style.display = 'none';
+                return;
+            }
+
+            const sortedRows = rows.slice().sort((a, b) => {
+                const aDate = new Date(a.date || a.logged_at || '');
+                const bDate = new Date(b.date || b.logged_at || '');
+                return bDate - aDate;
+            });
+
+            const latest = sortedRows[0];
+            document.getElementById('detailTicker').textContent = selectedTicker;
+            document.getElementById('detailDate').textContent = latest.date || latest.logged_at || '-';
+            document.getElementById('detailZScore').textContent = formatValue(latest.z_score, 3);
+            document.getElementById('detailAbsError').textContent = `${formatValue(latest.abs_error_pct)}%`;
+            document.getElementById('detailDirectionCorrect').textContent = latest.pdf_directional_correct === 1 ? 'Yes' : latest.pdf_directional_correct === 0 ? 'No' : '-';
+            document.getElementById('detailIntervalHit').textContent = latest.landed_in_50_pct_interval === 1 ? 'Yes' : latest.landed_in_50_pct_interval === 0 ? 'No' : '-';
+
+            sortedRows.slice(0, 10).forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.date || row.logged_at || '-'}</td>
+                    <td>${formatValue(row.z_score, 3)}</td>
+                    <td>${formatValue(row.abs_error_pct)}%</td>
+                    <td>${row.pdf_directional_correct === 1 ? 'Yes' : row.pdf_directional_correct === 0 ? 'No' : '-'}</td>
+                    <td>${row.landed_in_50_pct_interval === 1 ? 'Yes' : row.landed_in_50_pct_interval === 0 ? 'No' : '-'}</td>
+                `;
+                historyBody.appendChild(tr);
+            });
+
+            section.style.display = 'block';
         }
 
         function updateSearchSummary() {
@@ -700,11 +889,15 @@
         }
 
         function resetFilters() {
+            selectedTicker = '';
+            showFullData = false;
             document.getElementById('searchInput').value = '';
+            document.getElementById('stockSelector').value = '';
             document.getElementById('filterColumn').value = '';
             document.getElementById('filterValue').innerHTML = '<option value="">Filter value…</option>';
             filteredData = [...originalData];
             currentPage = 1;
+            renderStockDetails();
             displayTable();
         }
 
@@ -725,14 +918,31 @@
         }
 
         // Event listeners
+        document.getElementById('stockSelector').addEventListener('change', function() {
+            selectedTicker = this.value;
+            showFullData = false;
+            if (selectedTicker) {
+                filteredData = originalData.filter(row => row[tickerColumn] === selectedTicker);
+            } else {
+                filteredData = [...originalData];
+            }
+            currentPage = 1;
+            renderStockDetails();
+            displayTable();
+        });
+
         document.getElementById('searchInput').addEventListener('keyup', function() {
             const searchTerm = this.value.toLowerCase();
+            showFullData = true;
+            selectedTicker = '';
+            document.getElementById('stockSelector').value = '';
             filteredData = originalData.filter(row => {
                 return Object.values(row).some(val => 
                     String(val).toLowerCase().includes(searchTerm)
                 );
             });
             currentPage = 1;
+            renderStockDetails();
             displayTable();
         });
 
@@ -742,11 +952,16 @@
             displayTable();
         });
         document.getElementById('filterColumn').addEventListener('change', function () {
+            document.getElementById('stockSelector').value = '';
+            selectedTicker = '';
+            showFullData = true;
             populateValueFilter(this.value);
             applyDropdownFilters();
         });
 
         document.getElementById('filterValue').addEventListener('change', function () {
+            selectedTicker = '';
+            showFullData = true;
             applyDropdownFilters();
         });
 
