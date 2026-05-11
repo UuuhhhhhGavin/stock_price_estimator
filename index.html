@@ -397,6 +397,22 @@
                         </thead>
                         <tbody></tbody>
                     </table>
+                    <h3 style="margin-top: 20px;">10 Least Reliable Predictions</h3>
+                    <table id="worstPredictionsTable">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Direction</th>
+                                <th>Confidence</th>
+                                <th>Reliability</th>
+                                <th>Price</th>
+                                <th>Expected Price</th>
+                                <th>% Chg</th>
+                                <th>Expiry</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
                 <div class="right-panel">
                     <h3>Stock Detail View</h3>
@@ -591,7 +607,7 @@
                 const summary = result.summary || calculateSummary(result);
                 renderAnalysisSummary(summary);
                 renderConfidenceDistribution(summary.confidence_distribution);
-                renderTopConfidentPredictions(summary.top_confident_predictions);
+                renderPredictionTables(originalData);
                 renderStatistics(summary.statistics);
                 renderTopPredictionLists(originalData, result.columns);
                 renderStockDetails();
@@ -774,24 +790,80 @@
             document.querySelector('.confidence-item:nth-child(4) .fill').style.width = `${(conf.low / total) * 100}%`;
         }
 
-        function renderTopConfidentPredictions(predictions) {
-            const tbody = document.querySelector('#topPredictionsTable tbody');
+        const RELIABILITY_RANK = { 'HIGH': 3, 'MODERATE': 2, 'LOW': 1, 'INSUFFICIENT DATA': 0 };
+
+        function reliabilityRank(value) {
+            if (value === null || value === undefined) return -1;
+            return RELIABILITY_RANK[String(value).toUpperCase()] ?? -1;
+        }
+
+        function buildPredictionRecords(rows) {
+            // Keep the most recent row per ticker that has indicator data set.
+            const latestByTicker = new Map();
+            rows.forEach(row => {
+                const ticker = row.ticker;
+                if (!ticker) return;
+                const reliability = row.indicator_reliability;
+                const confidence = row.indicator_confidence;
+                if (reliability === null || reliability === undefined ||
+                    confidence === null || confidence === undefined) return;
+
+                const ts = new Date(row.logged_at || row.date || 0).getTime();
+                const existing = latestByTicker.get(ticker);
+                if (!existing || ts > existing._ts) {
+                    latestByTicker.set(ticker, { ...row, _ts: ts });
+                }
+            });
+            return Array.from(latestByTicker.values()).map(row => ({
+                ticker: row.ticker,
+                direction: row.indicator_direction,
+                confidence: row.indicator_confidence,
+                reliability: row.indicator_reliability,
+                price: row.current_price,
+                expected_price: row.expected_price,
+                pct_change: row['percent change %'],
+                expiry: row['analyzed option expiration'],
+            }));
+        }
+
+        function renderPredictionRows(selector, predictions) {
+            const tbody = document.querySelector(selector);
+            if (!tbody) return;
             tbody.innerHTML = '';
-            if (!predictions) return;
             predictions.forEach(pred => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${pred.ticker}</td>
-                    <td>${pred.direction}</td>
-                    <td>${formatValue(pred.confidence * 100)}%</td>
-                    <td>${formatValue(pred.reliability * 100)}%</td>
+                    <td>${pred.direction ?? '-'}</td>
+                    <td>${formatValue(pred.confidence)}%</td>
+                    <td>${pred.reliability ?? '-'}</td>
                     <td>${formatValue(pred.price)}</td>
                     <td>${formatValue(pred.expected_price)}</td>
                     <td>${formatValue(pred.pct_change)}%</td>
-                    <td>${pred.expiry}</td>
+                    <td>${(pred.expiry || '').toString().split(' ')[0]}</td>
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        function renderPredictionTables(rows) {
+            const records = buildPredictionRecords(rows);
+            // Most confident: highest reliability tier first, then highest confidence.
+            const top = records.slice().sort((a, b) => {
+                const rDiff = reliabilityRank(b.reliability) - reliabilityRank(a.reliability);
+                if (rDiff !== 0) return rDiff;
+                return (b.confidence || 0) - (a.confidence || 0);
+            }).slice(0, 15);
+
+            // Least reliable: lowest reliability tier first, then lowest confidence.
+            const worst = records.slice().sort((a, b) => {
+                const rDiff = reliabilityRank(a.reliability) - reliabilityRank(b.reliability);
+                if (rDiff !== 0) return rDiff;
+                return (a.confidence || 0) - (b.confidence || 0);
+            }).slice(0, 10);
+
+            renderPredictionRows('#topPredictionsTable tbody', top);
+            renderPredictionRows('#worstPredictionsTable tbody', worst);
         }
 
         function renderStatistics(stats) {
