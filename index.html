@@ -518,6 +518,7 @@
                 <option value="100">100 records per page</option>
                 <option value="500">500 records per page</option>
             </select>
+            <button onclick="showFullDataset()">Show full dataset</button>
             <button onclick="resetFilters()">Reset Filters</button>
             <button onclick="downloadJSON()">Download JSON</button>
         </div>
@@ -744,13 +745,19 @@
             };
         }
 
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        }
+
         function renderAnalysisSummary(summary) {
-            document.getElementById('avgError').textContent = `${formatValue(summary.avg_abs_error_pct)}%`;
-            document.getElementById('directionalAccuracy').textContent = `${formatValue(summary.directional_accuracy_pct)}%`;
-            document.getElementById('intervalHitRate').textContent = `${formatValue(summary.interval_hit_rate_pct)}%`;
-            document.getElementById('meanZScore').textContent = formatValue(summary.mean_z_score, 3);
-            document.getElementById('medianZScore').textContent = formatValue(summary.median_z_score, 3);
-            document.getElementById('avgIv').textContent = formatValue(summary.avg_atm_iv, 4);
+            if (!summary) return;
+            setText('avgError', `${formatValue(summary.avg_abs_error_pct)}%`);
+            setText('directionalAccuracy', `${formatValue(summary.directional_accuracy_pct)}%`);
+            setText('intervalHitRate', `${formatValue(summary.interval_hit_rate_pct)}%`);
+            setText('meanZScore', formatValue(summary.mean_z_score, 3));
+            setText('medianZScore', formatValue(summary.median_z_score, 3));
+            setText('avgIv', formatValue(summary.avg_atm_iv, 4));
         }
 
         function renderConfidenceDistribution(conf) {
@@ -790,25 +797,30 @@
         function renderStatistics(stats) {
             if (!stats) return;
             const norm = stats.normality_testing;
-            document.getElementById('normN').textContent = norm.n;
-            document.getElementById('normMean').textContent = formatValue(norm.mean, 4);
-            document.getElementById('normMedian').textContent = formatValue(norm.median, 4);
-            document.getElementById('normStdDev').textContent = formatValue(norm.std_dev, 4);
-            document.getElementById('normSkewness').textContent = formatValue(norm.skewness, 4);
-            document.getElementById('normKurtosis').textContent = formatValue(norm.kurtosis, 4);
-            document.getElementById('normShapiro').textContent = formatValue(norm.shapiro_wilk_p, 4);
-            document.getElementById('normDagostino').textContent = formatValue(norm.dagostino_k2_p, 4);
-            document.getElementById('normAnderson').textContent = norm.anderson_darling_reject ? 'Reject' : 'Accept';
-            document.getElementById('normJarque').textContent = formatValue(norm.jarque_bera_p, 4);
-            document.getElementById('normKS').textContent = formatValue(norm.kolmogorov_smirnov_p, 4);
+            if (norm) {
+                setText('normN', norm.n);
+                setText('normMean', formatValue(norm.mean, 4));
+                setText('normMedian', formatValue(norm.median, 4));
+                setText('normStdDev', formatValue(norm.std_dev, 4));
+                setText('normSkewness', formatValue(norm.skewness, 4));
+                setText('normKurtosis', formatValue(norm.kurtosis, 4));
+                setText('normShapiro', formatValue(norm.shapiro_wilk_p, 4));
+                setText('normDagostino', formatValue(norm.dagostino_k2_p, 4));
+                setText('normAnderson', norm.anderson_darling_reject ? 'Reject' : 'Accept');
+                setText('normJarque', formatValue(norm.jarque_bera_p, 4));
+                setText('normKS', formatValue(norm.kolmogorov_smirnov_p, 4));
+            }
 
             const tail = stats.tail_behavior;
-            document.getElementById('tailZ2Emp').textContent = `${tail.beyond_z2_empirical}%`;
-            document.getElementById('tailZ2Norm').textContent = `${tail.beyond_z2_normal}%`;
-            document.getElementById('tailZ3Emp').textContent = `${tail.beyond_z3_empirical}%`;
-            document.getElementById('tailZ3Norm').textContent = `${tail.beyond_z3_normal}%`;
+            if (tail) {
+                setText('tailZ2Emp', `${tail.beyond_z2_empirical}%`);
+                setText('tailZ2Norm', `${tail.beyond_z2_normal}%`);
+                setText('tailZ3Emp', `${tail.beyond_z3_empirical}%`);
+                setText('tailZ3Norm', `${tail.beyond_z3_normal}%`);
+            }
 
             const relTable = document.querySelector('#reliabilityCorrelationsTable tbody');
+            if (relTable && Array.isArray(stats.feature_correlations_reliability)) {
             relTable.innerHTML = '';
             stats.feature_correlations_reliability.forEach(item => {
                 const tr = document.createElement('tr');
@@ -819,8 +831,10 @@
                 `;
                 relTable.appendChild(tr);
             });
+            }
 
             const accTable = document.querySelector('#accuracyCorrelationsTable tbody');
+            if (accTable && Array.isArray(stats.feature_correlations_accuracy)) {
             accTable.innerHTML = '';
             stats.feature_correlations_accuracy.forEach(item => {
                 const tr = document.createElement('tr');
@@ -831,6 +845,7 @@
                 `;
                 accTable.appendChild(tr);
             });
+            }
         }
 
         function uniqueTickerRows(rows, tickerKey, valueKey, compareFn) {
@@ -864,6 +879,7 @@
 
             const bestList = document.getElementById('bestPredictions');
             const worstList = document.getElementById('worstPredictions');
+            if (!bestList || !worstList) return;
             bestList.innerHTML = '';
             worstList.innerHTML = '';
 
