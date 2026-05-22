@@ -505,6 +505,60 @@ def update_realized_prices(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def compute_realized_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute all metrics that depend on realized_price.
+    Safe to run repeatedly and optimized for performance.
+    """
+    required_cols = [
+        'realized_price', 'current_price', 'expected_price', 
+        'expected_std', 'p25', 'p75'
+    ]
+
+    # Quick exit if columns are missing
+    if not all(col in df.columns for col in required_cols):
+        return df
+
+    # Mask for rows where realized_price exists
+    mask = df['realized_price'].notna()
+    if not mask.any():
+        return df
+
+    # Extract vectorized series for just the valid rows to avoid repeated .loc indexing
+    cur = df.loc[mask, 'current_price']
+    exp_price = df.loc[mask, 'expected_price']
+    realized = df.loc[mask, 'realized_price']
+    p25 = df.loc[mask, 'p25']
+    p75 = df.loc[mask, 'p75']
+    stds = df.loc[mask, 'expected_std']
+
+    # 1. Direction correctness (Vectorized)
+    df.loc[mask, 'pdf_directional_correct'] = ((exp_price - cur) * (realized - cur)) > 0
+
+    # 2. 50% interval check (Vectorized replacement for the nested function)
+    # Valid rows must have both p25 and p75 present
+    valid_interval = p25.notna() & p75.notna()
+    
+    # Initialize column with None/NaN
+    df.loc[mask, 'landed_in_50_pct_interval'] = np.nan
+    
+    # Apply conditions vectorized only where intervals are valid
+    interval_condition = (p25 <= realized) & (realized <= p75)
+    df.loc[mask, 'landed_in_50_pct_interval'] = interval_condition.where(valid_interval, np.nan)
+
+    # 3. Absolute error % (Vectorized)
+    df.loc[mask, 'abs_error_pct'] = (abs(realized - exp_price) / cur) * 100
+
+    # 4. Z-score (Vectorized)
+    valid_std = stds.notna() & (stds > 0)
+    
+    # Initialize column
+    df.loc[mask, 'z_score'] = np.nan
+    
+    # Compute safely where standard deviation is valid
+    df.loc[mask, 'z_score'] = ((realized - exp_price) / stds).where(valid_std, np.nan)
+
+    return df
 
 def run_tracking(excel_path: str, save: bool = True, ticker_subset=None):
     """Run the tracking pipeline. Returns the merged DataFrame, or None on failure."""
