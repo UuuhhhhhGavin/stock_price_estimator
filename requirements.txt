@@ -1,7 +1,7 @@
 oipd==0.0.4
 matplotlib
 yfinance>=0.2.54
-pandas>=2.0.0
+pandas>=1.5.3
 openpyxl>=3.0.10
 requests
 numpy<2.0.0,>=1.23.4
