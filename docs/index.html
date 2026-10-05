@@ -1,1266 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📈 S&P 500 Options Insights</title>
-    <style>
-        :root {
-            --primary: #667eea;
-            --secondary: #764ba2;
-            --bg-light: #f9f9ff;
-            --bg-dark: #ffffff;
-            --text-dark: #1a1a2e;
-            --text-light: #666;
-            --border: #e0e0e0;
-            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f4f8;
-            color: var(--text-dark);
-            line-height: 1.6;
-            padding: 2rem;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: var(--bg-light);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            padding: 2rem;
-        }
-
-        header {
-            background: var(--bg-dark);
-            border-radius: 10px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        h1 {
-            color: var(--primary);
-            margin-bottom: 0.5rem;
-            font-size: 2.5rem;
-        }
-
-        .subtitle {
-            color: var(--text-light);
-            font-size: 1.1rem;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-
-        .stat-card {
-            background: var(--primary);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            text-align: center;
-            transition: transform 0.2s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        .analysis-section {
-            background: var(--bg-dark);
-            border-radius: 10px;
-            padding: 2rem;
-            margin: 2rem 0;
-            box-shadow: var(--shadow);
-        }
-
-        .analysis-split {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-        }
-
-        .left-panel, .right-panel {
-            background: #f3f4f6;
-            padding: 1.5rem;
-            border-radius: 10px;
-            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.08);
-        }
-
-        .confidence-distribution {
-            margin-bottom: 1.5rem;
-        }
-
-        .confidence-bars {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .confidence-item {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .confidence-item .label {
-            width: 140px;
-            font-weight: 600;
-        }
-
-        .bar {
-            flex: 1;
-            height: 20px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .bar .fill {
-            height: 100%;
-            background: var(--primary);
-            transition: width 0.3s;
-        }
-
-        .count {
-            width: 50px;
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .stats-split {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stats-panel {
-            background: #f3f4f6;
-            padding: 1.5rem;
-            border-radius: 10px;
-            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.08);
-        }
-
-        .controls {
-            background: var(--bg-dark);
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow);
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-        }
-
-        input, select {
-            padding: 0.75rem 1rem;
-            border: 2px solid var(--border);
-            border-radius: 6px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 8px rgba(102, 126, 234, 0.1);
-        }
-
-        button {
-            padding: 0.75rem 1.5rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-        }
-
-        .table-wrapper {
-            background: var(--bg-dark);
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-        }
-
-        th {
-            background: var(--primary);
-            color: white;
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        th:hover {
-            opacity: 0.9;
-        }
-
-        td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e8ecff;
-        }
-
-        tr:hover {
-            background: #f5f5f5;
-        }
-
-        tbody tr:nth-child(even) {
-            background: #fafafa;
-        }
-
-        .status {
-            padding: 0.4rem 0.8rem;
-            border-radius: 4px;
-            font-size: 0.85em;
-            font-weight: 600;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: var(--primary);
-            font-size: 1.2em;
-        }
-
-        .error {
-            background: #fff0f0;
-            border-left: 4px solid #e74c3c;
-            padding: 1.5rem;
-            border-radius: 6px;
-            color: #e74c3c;
-            margin: 1.5rem 0;
-        }
-
-        .footer {
-            text-align: center;
-            color: var(--text-light);
-            margin-top: 2rem;
-            font-size: 0.9em;
-        }
-
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-top: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .pagination button {
-            padding: 0.5rem 1rem;
-            font-size: 0.9em;
-            border: 1px solid var(--border);
-            background: transparent;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .pagination button.active {
-            background: var(--primary);
-            color: white;
-            font-weight: 600;
-        }
-
-        .search-summary {
-            color: var(--text-light);
-            margin-bottom: 1rem;
-            font-size: 0.95em;
-        }
-
-        @media (max-width: 768px) {
-            .analysis-split {
-                grid-template-columns: 1fr;
-            }
-
-            h1 {
-                font-size: 2rem;
-            }
-
-            .controls {
-                grid-template-columns: 1fr;
-            }
-
-            table {
-                font-size: 0.9em;
-            }
-
-            th, td {
-                padding: 0.6rem 0.8rem;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S&P 500 Options Insights</title>
+<style>
+:root{--primary:#667eea;--bg:#f0f4f8;--card:#fff;--text:#1a1a2e;--muted:#666;--border:#e0e0e0;--shadow:0 4px 12px rgba(0,0,0,.05)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:2rem}
+.container{max-width:1400px;margin:0 auto}
+header,.panel{background:var(--card);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:var(--shadow)}
+h1{color:var(--primary);font-size:2.2rem}
+h2{margin-bottom:1rem}
+h3{margin:1rem 0 .5rem}
+.subtitle{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:1.25rem}
+.stat-card{background:var(--primary);color:#fff;padding:1.1rem;border-radius:10px;text-align:center}
+.stat-label{font-size:.85rem;opacity:.9}
+.stat-value{font-size:1.7rem;font-weight:700}
+.stat-note{font-size:.75rem;opacity:.8}
+.tabs{display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.tab{padding:.7rem 1.4rem;background:var(--card);color:var(--primary);border:2px solid var(--primary);border-radius:8px;cursor:pointer;font-weight:600;font-size:1rem}
+.tab.active{background:var(--primary);color:#fff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:1.5rem}
+.sub{background:#f3f4f6;padding:1rem;border-radius:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{background:var(--primary);color:#fff;padding:.6rem;text-align:left;white-space:nowrap}
+#dataTable th{cursor:pointer}
+td{padding:.5rem .6rem;border-bottom:1px solid #e8ecff;white-space:nowrap}
+tbody tr:nth-child(even){background:#fafafa}
+input,select,button{padding:.65rem .9rem;border:2px solid var(--border);border-radius:6px;font-size:.95rem}
+button{background:var(--primary);color:#fff;border:none;cursor:pointer;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:4px;font-size:.75rem;font-weight:700;color:#fff}
+.b-bull{background:#16a34a}.b-bear{background:#dc2626}.b-harvest{background:#2563eb}.b-squeeze{background:#9333ea}.b-neutral{background:#6b7280}
+.pos{color:#16a34a;font-weight:600}.neg{color:#dc2626;font-weight:600}
+.bar{height:18px;background:#e0e0e0;border-radius:9px;overflow:hidden;flex:1}
+.bar>div{height:100%;background:var(--primary)}
+.row{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
+.row .label{width:180px;font-weight:600}.row .count{width:60px;text-align:right;font-weight:700}
+.pagination{display:flex;justify-content:center;gap:.5rem;margin-top:1rem;flex-wrap:wrap}
+.pagination button.active{background:#4c5fd0}
+.table-wrap{overflow-x:auto}
+.muted{color:var(--muted)}
+.error{background:#fff0f0;border-left:4px solid #e74c3c;padding:1rem;color:#e74c3c;border-radius:6px}
+.footer{text-align:center;color:var(--muted);font-size:.9rem}
+.note{font-size:.85rem;color:var(--muted);margin-top:.5rem}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}.grid3{grid-template-columns:1fr}body{padding:1rem}}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📊 S&P 500 Options Analysis Dashboard</h1>
-            <p class="subtitle">Real-time options chain data powered by GitHub Actions</p>
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-label">Total Records</div>
-                    <div class="stat-value" id="recordCount">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Unique Stocks</div>
-                    <div class="stat-value" id="stockCount">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Last Updated</div>
-                    <div class="stat-value" id="lastUpdated">-</div>
-                </div>
-            </div>
-        </header>
-        
-        <section class="analysis-section">
-            <h2>🔍 Model Analysis Summary</h2>
-            <div class="confidence-distribution">
-                <h3>Confidence Distribution</h3>
-                <div class="confidence-bars">
-                    <div class="confidence-item">
-                        <span class="label">Very High (80-95%)</span>
-                        <div class="bar">
-                            <div class="fill" style="width: calc(<span id="confVeryHigh">0</span>% / 4 * 100%)"></div>
-                        </div>
-                        <span class="count" id="confVeryHighCount">0</span>
-                    </div>
-                    <div class="confidence-item">
-                        <span class="label">High (60-80%)</span>
-                        <div class="bar">
-                            <div class="fill" style="width: calc(<span id="confHigh">0</span>% / 4 * 100%)"></div>
-                        </div>
-                        <span class="count" id="confHighCount">0</span>
-                    </div>
-                    <div class="confidence-item">
-                        <span class="label">Moderate (50-60%)</span>
-                        <div class="bar">
-                            <div class="fill" style="width: calc(<span id="confModerate">0</span>% / 4 * 100%)"></div>
-                        </div>
-                        <span class="count" id="confModerateCount">0</span>
-                    </div>
-                    <div class="confidence-item">
-                        <span class="label">Low (&lt;50%)</span>
-                        <div class="bar">
-                            <div class="fill" style="width: calc(<span id="confLow">0</span>% / 4 * 100%)"></div>
-                        </div>
-                        <span class="count" id="confLowCount">0</span>
-                    </div>
-                </div>
-            </div>
-            <div class="analysis-split">
-                <div class="left-panel">
-                    <h3>Top 15 Most Confident Predictions</h3>
-                    <table id="topPredictionsTable">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th>Direction</th>
-                                <th>Confidence</th>
-                                <th>Reliability</th>
-                                <th>Price</th>
-                                <th>Expected Price</th>
-                                <th>% Chg</th>
-                                <th>Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                    <h3 style="margin-top: 20px;">10 Least Reliable Predictions</h3>
-                    <table id="worstPredictionsTable">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th>Direction</th>
-                                <th>Confidence</th>
-                                <th>Reliability</th>
-                                <th>Price</th>
-                                <th>Expected Price</th>
-                                <th>% Chg</th>
-                                <th>Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="right-panel">
-                    <h3>Stock Detail View</h3>
-                    <select id="stockSelector">
-                        <option value="">Select a stock…</option>
-                    </select>
-                    <button type="button" onclick="clearStockSelection()">Clear stock</button>
-                    <div class="analysis-cards" id="stockDetailCards" style="display: none;">
-                        <div class="stat-card">
-                            <div class="stat-label">Ticker</div>
-                            <div class="stat-value" id="detailTicker">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Latest Date</div>
-                            <div class="stat-value" id="detailDate">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Latest Z-Score</div>
-                            <div class="stat-value" id="detailZScore">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Latest Abs Error</div>
-                            <div class="stat-value" id="detailAbsError">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Direction Correct</div>
-                            <div class="stat-value" id="detailDirectionCorrect">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">50% Interval Hit</div>
-                            <div class="stat-value" id="detailIntervalHit">-</div>
-                        </div>
-                    </div>
-                    <div class="analysis-list" id="stockHistorySection" style="display: none;">
-                        <h3>Recent Z-Score History</h3>
-                        <table id="stockHistoryTable">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Z-Score</th>
-                                    <th>Abs Error %</th>
-                                    <th>Direction Correct</th>
-                                    <th>50% Hit</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
+<div class="container">
+<header>
+  <h1>S&amp;P 500 Options Insights</h1>
+  <p class="subtitle">Directional flow &amp; volatility premium signals, updated daily via GitHub Actions</p>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Sentiment Long/Short Win Rate</div><div class="stat-value" id="mWin">-</div><div class="stat-note">top/bottom 20% by score</div></div>
+    <div class="stat-card"><div class="stat-label">Alpha per Trade</div><div class="stat-value" id="mAlpha">-</div><div class="stat-note" id="mAlphaAnn"></div></div>
+    <div class="stat-card"><div class="stat-label">Options Overpricing Ratio</div><div class="stat-value" id="mOver">-</div><div class="stat-note">expected vs realized move</div></div>
+    <div class="stat-card"><div class="stat-label">Premium Harvest Hit Rate</div><div class="stat-value" id="mHarvest">-</div><div class="stat-note">stayed within 1&sigma; band</div></div>
+    <div class="stat-card"><div class="stat-label">Raw PDF Direction Accuracy</div><div class="stat-value" id="mDir">-</div><div class="stat-note">realized rows only</div></div>
+    <div class="stat-card"><div class="stat-label">Records / Stocks</div><div class="stat-value" id="mRecords">-</div><div class="stat-note" id="mUpdated"></div></div>
+  </div>
+</header>
 
-        <section class="analysis-section" id="statisticsSection">
-            <h2>📊 Model Statistics</h2>
-            <div class="stats-split">
-                <div class="stats-panel">
-                    <h3>Normality Testing</h3>
-                    <table id="normalityTable">
-                        <tbody>
-                            <tr><td>N</td><td id="normN">-</td></tr>
-                            <tr><td>Mean</td><td id="normMean">-</td></tr>
-                            <tr><td>Median</td><td id="normMedian">-</td></tr>
-                            <tr><td>Std Dev</td><td id="normStdDev">-</td></tr>
-                            <tr><td>Skewness</td><td id="normSkewness">-</td></tr>
-                            <tr><td>Kurtosis</td><td id="normKurtosis">-</td></tr>
-                            <tr><td>Shapiro-Wilk p</td><td id="normShapiro">-</td></tr>
-                            <tr><td>D'Agostino K2 p</td><td id="normDagostino">-</td></tr>
-                            <tr><td>Anderson-Darling</td><td id="normAnderson">-</td></tr>
-                            <tr><td>Jarque-Bera p</td><td id="normJarque">-</td></tr>
-                            <tr><td>Kolmogorov-Smirnov p</td><td id="normKS">-</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="stats-panel">
-                    <h3>Tail Behavior</h3>
-                    <table id="tailTable">
-                        <tbody>
-                            <tr><td>Beyond |z|>2 Empirical</td><td id="tailZ2Emp">-</td></tr>
-                            <tr><td>Beyond |z|>2 Normal</td><td id="tailZ2Norm">-</td></tr>
-                            <tr><td>Beyond |z|>3 Empirical</td><td id="tailZ3Emp">-</td></tr>
-                            <tr><td>Beyond |z|>3 Normal</td><td id="tailZ3Norm">-</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="stats-full">
-                <h3>Feature Correlations with Reliability</h3>
-                <table id="reliabilityCorrelationsTable">
-                    <thead>
-                        <tr><th>Feature</th><th>t-stat</th><th>p-value</th></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-            <div class="stats-full">
-                <h3>Feature Correlations with Directional Accuracy</h3>
-                <table id="accuracyCorrelationsTable">
-                    <thead>
-                        <tr><th>Feature</th><th>r</th><th>p</th></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
+<div class="tabs">
+  <button class="tab active" data-tab="picks">Daily Picks</button>
+  <button class="tab" data-tab="perf">Strategy Performance</button>
+  <button class="tab" data-tab="inspect">Stock Inspector &amp; Dataset</button>
+</div>
 
-        <div class="controls">
-            <input type="text" id="searchInput" placeholder="Search by symbol, company name...">
-            <select id="filterColumn">
-                <option value="">Filter by column…</option>
-            </select>
+<section id="picks" class="tab-content active">
+  <div class="panel"><h2>Active Strategy Mix</h2><div id="stratMix"></div></div>
+  <div class="grid3">
+    <div class="panel"><h2>Top Bullish Flow</h2><div class="table-wrap"><table id="bullTable"></table></div></div>
+    <div class="panel"><h2>Top Bearish Flow</h2><div class="table-wrap"><table id="bearTable"></table></div></div>
+  </div>
+  <div class="panel"><h2>Top Premium Harvest</h2><div class="table-wrap"><table id="harvestTable"></table></div>
+    <p class="note">Setup sells premium outside the market-implied 25th-75th percentile band; the 1&sigma; range is shown for reference.</p></div>
+  <div class="panel"><h2>Highest Confidence Signals</h2><div class="table-wrap"><table id="topTable"></table></div></div>
+</section>
 
-            <select id="filterValue">
-                <option value="">Filter value…</option>
-            </select>
-
-            <select id="recordsPerPage">
-                <option value="25">25 records per page</option>
-                <option value="50">50 records per page</option>
-                <option value="100">100 records per page</option>
-                <option value="500">500 records per page</option>
-            </select>
-            <button onclick="showFullDataset()">Show full dataset</button>
-            <button onclick="resetFilters()">Reset Filters</button>
-            <button onclick="downloadJSON()">Download JSON</button>
-        </div>
-        
-        <div class="search-summary" id="searchSummary"></div>
-        <div class="search-summary" id="tableMessage">Select a stock or click “Show full dataset” to view the table.</div>
-        
-        <div class="table-wrapper">
-            <div class="loading" id="loading">Loading data...</div>
-            <div id="errorDiv" style="display: none;"></div>
-            <table id="dataTable" style="display: none;">
-                <thead id="tableHead"></thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-        </div>
-        
-        <div class="pagination" id="pagination"></div>
-        
-        <div class="footer">
-            <p>Data automatically updated daily via GitHub Actions | Last sync: <span id="footerTime">-</span></p>
-        </div>
+<section id="perf" class="tab-content">
+  <div class="panel"><h2>Edge Analytics</h2>
+    <div class="grid2">
+      <div class="sub"><h3>Expected vs Realized Move</h3><div id="moveCompare"></div></div>
+      <div class="sub"><h3>Calibration</h3><div id="calib"></div></div>
     </div>
-
-    <script>
-        let originalData = [];
-        let filteredData = [];
-        let currentPage = 1;
-        let recordsPerPage = 25;
-        let tickerColumn = '';
-        let selectedTicker = '';
-        let showFullData = false;
-
-        async function loadData() {
-            const loading = document.getElementById('loading');
-            const errorDiv = document.getElementById('errorDiv');
-            
-            try {
-                const response = await fetch('./data.json');
-                if (!response.ok) {
-                    throw new Error('Failed to load data');
-                }
-                const result = await response.json();
-                
-                originalData = result.data;
-                filteredData = [...originalData];
-                
-                // Update stats
-                document.getElementById('recordCount').textContent = originalData.length.toLocaleString();
-                document.getElementById('lastUpdated').textContent = new Date(result.lastUpdated).toLocaleDateString();
-                document.getElementById('footerTime').textContent = result.lastUpdated;
-                
-                // Calculate unique stocks
-                const stocks = new Set(originalData.map(row => {
-                    for (const col of result.columns) {
-                        if (col.toLowerCase().includes('symbol') || col.toLowerCase().includes('ticker')) {
-                            return row[col];
-                        }
-                    }
-                    return null;
-                }).filter(s => s));
-                document.getElementById('stockCount').textContent = stocks.size.toLocaleString();
-                
-                tickerColumn = findColumn(result.columns, ['ticker', 'symbol']) || '';
-                populateStockSelector(result.columns);
-
-                // Create table headers
-                createTableHeaders(result.columns);
-                populateColumnFilter(result.columns);
-
-                const summary = result.summary || calculateSummary(result);
-                renderAnalysisSummary(summary);
-                renderConfidenceDistribution(summary.confidence_distribution);
-                renderPredictionTables(originalData);
-                renderStatistics(summary.statistics);
-                renderTopPredictionLists(originalData, result.columns);
-                renderStockDetails();
-
-                // Display data
-                loading.style.display = 'none';
-                updateTableVisibility();
-                displayTable();
-                
-            } catch (error) {
-                console.error('Error loading data:', error);
-                loading.style.display = 'none';
-                errorDiv.style.display = 'block';
-                errorDiv.className = 'error';
-                errorDiv.innerHTML = `<strong>Error loading data:</strong> ${error.message}<br><br>Make sure <code>data.json</code> is in the same directory as this HTML file.`;
-            }
-        }
-
-        function createTableHeaders(columns) {
-            const thead = document.getElementById('tableHead');
-            const headerRow = document.createElement('tr');
-            
-            columns.forEach(col => {
-                const th = document.createElement('th');
-                th.textContent = col;
-                th.onclick = () => sortTable(col);
-                th.title = 'Click to sort';
-                headerRow.appendChild(th);
-            });
-            
-            thead.appendChild(headerRow);
-        }
-
-        function populateColumnFilter(columns) {
-            const filterColumn = document.getElementById('filterColumn');
-            filterColumn.innerHTML = '<option value="">Filter by column…</option>';
-
-            columns.forEach(col => {
-                const option = document.createElement('option');
-                option.value = col;
-                option.textContent = col;
-                filterColumn.appendChild(option);
-            });
-        }
-
-        function findColumn(columns, keywords) {
-            return columns.find(col => keywords.some(keyword => col.toLowerCase().includes(keyword)));
-        }
-
-        function populateStockSelector(columns) {
-            const stockSelector = document.getElementById('stockSelector');
-            stockSelector.innerHTML = '<option value="">Select a stock…</option>';
-            if (!tickerColumn) return;
-
-            const symbols = [...new Set(originalData.map(row => row[tickerColumn]).filter(Boolean))]
-                .sort((a, b) => String(a).localeCompare(String(b)));
-
-            symbols.forEach(symbol => {
-                const option = document.createElement('option');
-                option.value = symbol;
-                option.textContent = symbol;
-                stockSelector.appendChild(option);
-            });
-        }
-
-        function shouldShowFullTable() {
-            const searchActive = document.getElementById('searchInput').value.trim() !== '';
-            const filterActive = document.getElementById('filterColumn').value || document.getElementById('filterValue').value;
-            return showFullData || selectedTicker || searchActive || filterActive;
-        }
-
-        function updateTableVisibility() {
-            const table = document.getElementById('dataTable');
-            const message = document.getElementById('tableMessage');
-            const errorDiv = document.getElementById('errorDiv');
-
-            if (!shouldShowFullTable()) {
-                table.style.display = 'none';
-                errorDiv.style.display = 'none';
-                message.style.display = 'block';
-                message.textContent = 'Select a stock or click “Show full dataset” to view the table.';
-                return;
-            }
-
-            message.style.display = 'none';
-            errorDiv.style.display = 'none';
-            table.style.display = 'table';
-        }
-
-        function clearStockSelection() {
-            selectedTicker = '';
-            showFullData = false;
-            document.getElementById('stockSelector').value = '';
-            document.getElementById('stockSelector').blur();
-            filteredData = [...originalData];
-            renderStockDetails();
-            displayTable();
-        }
-
-        function showFullDataset() {
-            showFullData = true;
-            selectedTicker = '';
-            document.getElementById('stockSelector').value = '';
-            filteredData = [...originalData];
-            renderStockDetails();
-            displayTable();
-        }
-
-        function formatValue(value, decimals = 2) {
-            if (value === null || value === undefined || Number.isNaN(value)) {
-                return '-';
-            }
-            return typeof value === 'number'
-                ? value.toLocaleString(undefined, { maximumFractionDigits: decimals })
-                : value;
-        }
-
-        function calculateSummary(result) {
-            const rows = result.data || originalData;
-            const safeNumbers = (field) => rows
-                .map(row => row[field])
-                .filter(val => typeof val === 'number');
-
-            const mean = (field) => {
-                const values = safeNumbers(field);
-                return values.length ? values.reduce((sum, val) => sum + val, 0) / values.length : null;
-            };
-
-            const percentTrue = (field) => {
-                const values = rows
-                    .map(row => row[field])
-                    .filter(val => val !== null && val !== undefined);
-                const trueCount = values.filter(val => val === 1 || val === true).length;
-                return values.length ? (trueCount / values.length) * 100 : null;
-            };
-
-            const median = (field) => {
-                const values = safeNumbers(field).sort((a, b) => a - b);
-                if (!values.length) return null;
-                const mid = Math.floor(values.length / 2);
-                return values.length % 2 === 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
-            };
-
-            return {
-                avg_abs_error_pct: mean('abs_error_pct'),
-                directional_accuracy_pct: percentTrue('pdf_directional_correct'),
-                interval_hit_rate_pct: percentTrue('landed_in_50_pct_interval'),
-                mean_z_score: mean('z_score'),
-                median_z_score: median('z_score'),
-                avg_atm_iv: mean('ATM IV'),
-            };
-        }
-
-        function setText(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value;
-        }
-
-        function renderAnalysisSummary(summary) {
-            if (!summary) return;
-            setText('avgError', `${formatValue(summary.avg_abs_error_pct)}%`);
-            setText('directionalAccuracy', `${formatValue(summary.directional_accuracy_pct)}%`);
-            setText('intervalHitRate', `${formatValue(summary.interval_hit_rate_pct)}%`);
-            setText('meanZScore', formatValue(summary.mean_z_score, 3));
-            setText('medianZScore', formatValue(summary.median_z_score, 3));
-            setText('avgIv', formatValue(summary.avg_atm_iv, 4));
-        }
-
-        function renderConfidenceDistribution(conf) {
-            if (!conf) return;
-            document.getElementById('confVeryHighCount').textContent = conf.very_high;
-            document.getElementById('confHighCount').textContent = conf.high;
-            document.getElementById('confModerateCount').textContent = conf.moderate;
-            document.getElementById('confLowCount').textContent = conf.low;
-            // Update bar widths
-            const total = conf.very_high + conf.high + conf.moderate + conf.low;
-            document.querySelector('.confidence-item:nth-child(1) .fill').style.width = `${(conf.very_high / total) * 100}%`;
-            document.querySelector('.confidence-item:nth-child(2) .fill').style.width = `${(conf.high / total) * 100}%`;
-            document.querySelector('.confidence-item:nth-child(3) .fill').style.width = `${(conf.moderate / total) * 100}%`;
-            document.querySelector('.confidence-item:nth-child(4) .fill').style.width = `${(conf.low / total) * 100}%`;
-        }
-
-        const RELIABILITY_RANK = { 'HIGH': 3, 'MODERATE': 2, 'LOW': 1, 'INSUFFICIENT DATA': 0 };
-
-        function reliabilityRank(value) {
-            if (value === null || value === undefined) return -1;
-            return RELIABILITY_RANK[String(value).toUpperCase()] ?? -1;
-        }
-
-        function buildPredictionRecords(rows) {
-            // Keep the most recent row per ticker that has indicator data set.
-            const latestByTicker = new Map();
-            rows.forEach(row => {
-                const ticker = row.ticker;
-                if (!ticker) return;
-                const reliability = row.indicator_reliability;
-                const confidence = row.indicator_confidence;
-                if (reliability === null || reliability === undefined ||
-                    confidence === null || confidence === undefined) return;
-
-                const ts = new Date(row.logged_at || row.date || 0).getTime();
-                const existing = latestByTicker.get(ticker);
-                if (!existing || ts > existing._ts) {
-                    latestByTicker.set(ticker, { ...row, _ts: ts });
-                }
-            });
-            return Array.from(latestByTicker.values()).map(row => ({
-                ticker: row.ticker,
-                direction: row.indicator_direction,
-                confidence: row.indicator_confidence,
-                reliability: row.indicator_reliability,
-                price: row.current_price,
-                expected_price: row.expected_price,
-                pct_change: row['percent change %'],
-                expiry: row['analyzed option expiration'],
-            }));
-        }
-
-        function renderPredictionRows(selector, predictions) {
-            const tbody = document.querySelector(selector);
-            if (!tbody) return;
-            tbody.innerHTML = '';
-            predictions.forEach(pred => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${pred.ticker}</td>
-                    <td>${pred.direction ?? '-'}</td>
-                    <td>${formatValue(pred.confidence)}%</td>
-                    <td>${pred.reliability ?? '-'}</td>
-                    <td>${formatValue(pred.price)}</td>
-                    <td>${formatValue(pred.expected_price)}</td>
-                    <td>${formatValue(pred.pct_change)}%</td>
-                    <td>${(pred.expiry || '').toString().split(' ')[0]}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function renderPredictionTables(rows) {
-            const records = buildPredictionRecords(rows);
-            // Most confident: highest reliability tier first, then highest confidence.
-            const top = records.slice().sort((a, b) => {
-                const rDiff = reliabilityRank(b.reliability) - reliabilityRank(a.reliability);
-                if (rDiff !== 0) return rDiff;
-                return (b.confidence || 0) - (a.confidence || 0);
-            }).slice(0, 15);
-
-            // Least reliable: lowest reliability tier first, then lowest confidence.
-            const worst = records.slice().sort((a, b) => {
-                const rDiff = reliabilityRank(a.reliability) - reliabilityRank(b.reliability);
-                if (rDiff !== 0) return rDiff;
-                return (a.confidence || 0) - (b.confidence || 0);
-            }).slice(0, 10);
-
-            renderPredictionRows('#topPredictionsTable tbody', top);
-            renderPredictionRows('#worstPredictionsTable tbody', worst);
-        }
-
-        function renderStatistics(stats) {
-            if (!stats) return;
-            const norm = stats.normality_testing;
-            if (norm) {
-                setText('normN', norm.n);
-                setText('normMean', formatValue(norm.mean, 4));
-                setText('normMedian', formatValue(norm.median, 4));
-                setText('normStdDev', formatValue(norm.std_dev, 4));
-                setText('normSkewness', formatValue(norm.skewness, 4));
-                setText('normKurtosis', formatValue(norm.kurtosis, 4));
-                setText('normShapiro', formatValue(norm.shapiro_wilk_p, 4));
-                setText('normDagostino', formatValue(norm.dagostino_k2_p, 4));
-                setText('normAnderson', norm.anderson_darling_reject ? 'Reject' : 'Accept');
-                setText('normJarque', formatValue(norm.jarque_bera_p, 4));
-                setText('normKS', formatValue(norm.kolmogorov_smirnov_p, 4));
-            }
-
-            const tail = stats.tail_behavior;
-            if (tail) {
-                setText('tailZ2Emp', `${tail.beyond_z2_empirical}%`);
-                setText('tailZ2Norm', `${tail.beyond_z2_normal}%`);
-                setText('tailZ3Emp', `${tail.beyond_z3_empirical}%`);
-                setText('tailZ3Norm', `${tail.beyond_z3_normal}%`);
-            }
-
-            const relTable = document.querySelector('#reliabilityCorrelationsTable tbody');
-            if (relTable && Array.isArray(stats.feature_correlations_reliability)) {
-            relTable.innerHTML = '';
-            stats.feature_correlations_reliability.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${item.feature}</td>
-                    <td>${formatValue(item.t_stat, 2)}</td>
-                    <td>${formatValue(item.p_value, 4)}</td>
-                `;
-                relTable.appendChild(tr);
-            });
-            }
-
-            const accTable = document.querySelector('#accuracyCorrelationsTable tbody');
-            if (accTable && Array.isArray(stats.feature_correlations_accuracy)) {
-            accTable.innerHTML = '';
-            stats.feature_correlations_accuracy.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${item.feature}</td>
-                    <td>${formatValue(item.r, 4)}</td>
-                    <td>${formatValue(item.p, 4)}</td>
-                `;
-                accTable.appendChild(tr);
-            });
-            }
-        }
-
-        function uniqueTickerRows(rows, tickerKey, valueKey, compareFn) {
-            const bestByTicker = new Map();
-
-            rows.forEach(row => {
-                const ticker = row[tickerKey];
-                const value = row[valueKey];
-                if (!ticker || typeof value !== 'number' || Number.isNaN(value)) return;
-
-                const existing = bestByTicker.get(ticker);
-                if (!existing || compareFn(value, existing[valueKey])) {
-                    bestByTicker.set(ticker, row);
-                }
-            });
-
-            return Array.from(bestByTicker.values());
-        }
-
-        function renderTopPredictionLists(data, columns) {
-            const tickerKey = findColumn(columns, ['ticker', 'symbol']) || 'ticker';
-            const valueColumn = 'abs_error_pct';
-
-            const bestUnique = uniqueTickerRows(data, tickerKey, valueColumn, (value, existing) => value < existing)
-                .sort((a, b) => a[valueColumn] - b[valueColumn])
-                .slice(0, 5);
-
-            const worstUnique = uniqueTickerRows(data, tickerKey, valueColumn, (value, existing) => value > existing)
-                .sort((a, b) => b[valueColumn] - a[valueColumn])
-                .slice(0, 5);
-
-            const bestList = document.getElementById('bestPredictions');
-            const worstList = document.getElementById('worstPredictions');
-            if (!bestList || !worstList) return;
-            bestList.innerHTML = '';
-            worstList.innerHTML = '';
-
-            bestUnique.forEach(row => {
-                const li = document.createElement('li');
-                const ticker = row[tickerKey] || 'Unknown';
-                li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
-                bestList.appendChild(li);
-            });
-
-            worstUnique.forEach(row => {
-                const li = document.createElement('li');
-                const ticker = row[tickerKey] || 'Unknown';
-                li.textContent = `${ticker} — ${formatValue(row[valueColumn])}% error`;
-                worstList.appendChild(li);
-            });
-        }
-        function populateValueFilter(column) {
-            const filterValue = document.getElementById('filterValue');
-            filterValue.innerHTML = '<option value="">Filter value…</option>';
-
-            if (!column) return;
-
-            const uniqueValues = [...new Set(
-                originalData
-                    .map(row => row[column])
-                    .filter(v => v !== null && v !== undefined)
-            )];
-
-            uniqueValues
-                .sort((a, b) => String(a).localeCompare(String(b)))
-                .forEach(val => {
-                    const option = document.createElement('option');
-                    option.value = val;
-                    option.textContent = val;
-                    filterValue.appendChild(option);
-                });
-        }
-        function applyDropdownFilters() {
-            const column = document.getElementById('filterColumn').value;
-            const value = document.getElementById('filterValue').value;
-
-            filteredData = originalData.filter(row => {
-                if (!column || !value) return true;
-                return String(row[column]) === String(value);
-            });
-
-            currentPage = 1;
-            displayTable();
-        }
-
-        function displayTable() {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
-            
-            const start = (currentPage - 1) * recordsPerPage;
-            const end = start + recordsPerPage;
-            const pageData = filteredData.slice(start, end);
-            
-            if (pageData.length === 0) {
-                document.getElementById('dataTable').style.display = 'none';
-                document.getElementById('errorDiv').style.display = 'block';
-                document.getElementById('errorDiv').className = 'error';
-                document.getElementById('errorDiv').innerHTML = 'No results found.';
-                document.getElementById('tableMessage').style.display = 'none';
-                return;
-            }
-            
-            document.getElementById('errorDiv').style.display = 'none';
-            updateTableVisibility();
-            
-            if (!shouldShowFullTable()) {
-                return;
-            }
-            
-            pageData.forEach(row => {
-                const tr = document.createElement('tr');
-                Object.values(row).forEach(val => {
-                    const td = document.createElement('td');
-                    td.textContent = val !== null ? val : '-';
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
-            });
-            
-            updatePagination();
-            updateSearchSummary();
-        }
-
-        function renderStockDetails() {
-            const cards = document.getElementById('stockDetailCards');
-            const history = document.getElementById('stockHistorySection');
-            const historyBody = document.querySelector('#stockHistoryTable tbody');
-            historyBody.innerHTML = '';
-
-            if (!selectedTicker || !tickerColumn) {
-                cards.style.display = 'none';
-                history.style.display = 'none';
-                return;
-            }
-
-            const rows = originalData.filter(row => row[tickerColumn] === selectedTicker);
-            if (!rows.length) {
-                cards.style.display = 'none';
-                history.style.display = 'none';
-                return;
-            }
-
-            const sortedRows = rows.slice().sort((a, b) => {
-                const aDate = new Date(a.date || a.logged_at || '');
-                const bDate = new Date(b.date || b.logged_at || '');
-                return bDate - aDate;
-            });
-
-            const latest = sortedRows[0];
-            document.getElementById('detailTicker').textContent = selectedTicker;
-            document.getElementById('detailDate').textContent = latest.date || latest.logged_at || '-';
-            document.getElementById('detailZScore').textContent = formatValue(latest.z_score, 3);
-            document.getElementById('detailAbsError').textContent = `${formatValue(latest.abs_error_pct)}%`;
-            document.getElementById('detailDirectionCorrect').textContent = latest.pdf_directional_correct === 1 ? 'Yes' : latest.pdf_directional_correct === 0 ? 'No' : '-';
-            document.getElementById('detailIntervalHit').textContent = latest.landed_in_50_pct_interval === 1 ? 'Yes' : latest.landed_in_50_pct_interval === 0 ? 'No' : '-';
-
-            sortedRows.slice(0, 10).forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${row.date || row.logged_at || '-'}</td>
-                    <td>${formatValue(row.z_score, 3)}</td>
-                    <td>${formatValue(row.abs_error_pct)}%</td>
-                    <td>${row.pdf_directional_correct === 1 ? 'Yes' : row.pdf_directional_correct === 0 ? 'No' : '-'}</td>
-                    <td>${row.landed_in_50_pct_interval === 1 ? 'Yes' : row.landed_in_50_pct_interval === 0 ? 'No' : '-'}</td>
-                `;
-                historyBody.appendChild(tr);
-            });
-
-            cards.style.display = 'grid';
-            history.style.display = 'block';
-        }
-
-        function updateSearchSummary() {
-            const summary = document.getElementById('searchSummary');
-            const searchVal = document.getElementById('searchInput').value;
-            
-            if (filteredData.length !== originalData.length) {
-                summary.textContent = `Found ${filteredData.length.toLocaleString()} of ${originalData.length.toLocaleString()} records`;
-            } else {
-                summary.textContent = '';
-            }
-        }
-
-        function updatePagination() {
-            const pagination = document.getElementById('pagination');
-            pagination.innerHTML = '';
-            
-            if (filteredData.length === 0) {
-                return;
-            }
-            
-            const totalPages = Math.ceil(filteredData.length / recordsPerPage);
-            
-            const prevBtn = document.createElement('button');
-            prevBtn.textContent = '← Previous';
-            prevBtn.onclick = () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    displayTable();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            };
-            prevBtn.disabled = currentPage === 1;
-            pagination.appendChild(prevBtn);
-            
-            for (let i = 1; i <= totalPages; i++) {
-                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-                    const btn = document.createElement('button');
-                    btn.textContent = i;
-                    btn.onclick = () => {
-                        currentPage = i;
-                        displayTable();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    };
-                    if (i === currentPage) {
-                        btn.className = 'active';
-                    }
-                    pagination.appendChild(btn);
-                } else if (i === 2 || i === totalPages - 1) {
-                    const span = document.createElement('span');
-                    span.textContent = '...';
-                    span.style.padding = '0 5px';
-                    pagination.appendChild(span);
-                }
-            }
-            
-            const nextBtn = document.createElement('button');
-            nextBtn.textContent = 'Next →';
-            nextBtn.onclick = () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    displayTable();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            };
-            nextBtn.disabled = currentPage === totalPages;
-            pagination.appendChild(nextBtn);
-        }
-
-        function sortTable(column) {
-            filteredData.sort((a, b) => {
-                const aVal = a[column];
-                const bVal = b[column];
-                
-                if (aVal === null) return 1;
-                if (bVal === null) return -1;
-                
-                if (typeof aVal === 'number' && typeof bVal === 'number') {
-                    return aVal - bVal;
-                }
-                
-                return String(aVal).localeCompare(String(bVal));
-            });
-            
-            currentPage = 1;
-            displayTable();
-        }
-
-        function resetFilters() {
-            selectedTicker = '';
-            showFullData = false;
-            document.getElementById('searchInput').value = '';
-            document.getElementById('stockSelector').value = '';
-            document.getElementById('filterColumn').value = '';
-            document.getElementById('filterValue').innerHTML = '<option value="">Filter value…</option>';
-            filteredData = [...originalData];
-            currentPage = 1;
-            renderStockDetails();
-            displayTable();
-        }
-
-
-        function downloadJSON() {
-            const dataStr = JSON.stringify({
-                lastUpdated: new Date().toISOString(),
-                records: filteredData
-            }, null, 2);
-            
-            const blob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sp500_options_${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Event listeners
-        document.getElementById('stockSelector').addEventListener('change', function() {
-            selectedTicker = this.value;
-            showFullData = false;
-            if (selectedTicker) {
-                filteredData = originalData.filter(row => row[tickerColumn] === selectedTicker);
-            } else {
-                filteredData = [...originalData];
-            }
-            currentPage = 1;
-            renderStockDetails();
-            displayTable();
-        });
-
-        document.getElementById('searchInput').addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase();
-            showFullData = true;
-            selectedTicker = '';
-            document.getElementById('stockSelector').value = '';
-            filteredData = originalData.filter(row => {
-                return Object.values(row).some(val => 
-                    String(val).toLowerCase().includes(searchTerm)
-                );
-            });
-            currentPage = 1;
-            renderStockDetails();
-            displayTable();
-        });
-
-        document.getElementById('recordsPerPage').addEventListener('change', function() {
-            recordsPerPage = parseInt(this.value);
-            currentPage = 1;
-            displayTable();
-        });
-        document.getElementById('filterColumn').addEventListener('change', function () {
-            document.getElementById('stockSelector').value = '';
-            selectedTicker = '';
-            showFullData = true;
-            populateValueFilter(this.value);
-            applyDropdownFilters();
-        });
-
-        document.getElementById('filterValue').addEventListener('change', function () {
-            selectedTicker = '';
-            showFullData = true;
-            applyDropdownFilters();
-        });
-
-        // Load data on page load
-        window.addEventListener('load', loadData);
-    </script>
+  </div>
+  <div class="panel"><h2>Model Statistics</h2>
+    <div class="grid2">
+      <div class="sub"><h3>Normality Testing</h3><table id="normTable"></table></div>
+      <div class="sub"><h3>Tail Behavior</h3><table id="tailTable"></table></div>
+    </div>
+    <div class="sub" style="margin-top:1rem"><h3>Feature Correlations with Reliability</h3><table id="relTable"></table></div>
+    <div class="sub" style="margin-top:1rem"><h3>Feature Correlations with Directional Accuracy</h3><table id="accTable"></table></div>
+  </div>
+</section>
+
+<section id="inspect" class="tab-content">
+  <div class="panel">
+    <h2>Stock Inspector</h2>
+    <div class="controls">
+      <select id="stockSelector"><option value="">Select a stock…</option></select>
+      <button id="clearStock">Clear stock</button>
+    </div>
+    <div id="stockDetail" class="muted">Select a stock to view its latest signal and history.</div>
+  </div>
+  <div class="panel">
+    <h2>Full Dataset</h2>
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="Search by ticker, strategy…">
+      <select id="filterColumn"><option value="">Filter by column…</option></select>
+      <select id="filterValue"><option value="">Filter value…</option></select>
+      <select id="recordsPerPage"><option value="25">25 / page</option><option value="50">50 / page</option><option value="100">100 / page</option><option value="500">500 / page</option></select>
+      <button id="showFull">Show full dataset</button>
+      <button id="resetBtn">Reset</button>
+      <button id="downloadBtn">Download JSON</button>
+    </div>
+    <div class="note" id="searchSummary"></div>
+    <div class="note" id="tableMessage">Select a stock, search, or click "Show full dataset" to view the table.</div>
+    <div class="loading muted" id="loading">Loading data…</div>
+    <div id="errorDiv" class="error" style="display:none"></div>
+    <div class="table-wrap"><table id="dataTable" style="display:none"><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table></div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</section>
+
+<div class="footer">Last sync: <span id="footerTime">-</span> &middot; Not financial advice.</div>
+</div>
+
+<script>
+let originalData = [], filteredData = [], columns = [];
+let currentPage = 1, recordsPerPage = 25, selectedTicker = '', showFullData = false;
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '-' :
+  (typeof v === 'number' ? v.toLocaleString(undefined, {maximumFractionDigits: d}) : v);
+const pct = (v, d = 2) => (v === null || v === undefined) ? '-' : `${fmt(v, d)}%`;
+
+const BADGES = {'BULLISH FLOW':'b-bull','MILD BULLISH':'b-bull','BEARISH FLOW':'b-bear','MILD BEARISH':'b-bear',
+  'PREMIUM HARVEST':'b-harvest','VOLATILITY SQUEEZE':'b-squeeze'};
+const badge = s => `<span class="badge ${BADGES[s] || 'b-neutral'}">${esc(s || 'NEUTRAL')}</span>`;
+
+function renderTable(id, headers, rows) {
+  $(id).innerHTML = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
+    rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="muted">No active signals.</td></tr>`}</tbody>`;
+}
+
+function pickRows(picks, kind) {
+  return (picks || []).map(p => {
+    const sigma = p.price && p.expected_std_pct != null
+      ? `$${fmt(p.price * (1 - p.expected_std_pct / 100))} – $${fmt(p.price * (1 + p.expected_std_pct / 100))}` : '-';
+    const band = p.p25 != null && p.p75 != null ? `$${fmt(p.p25)} – $${fmt(p.p75)}` : '-';
+    if (kind === 'harvest') {
+      return `<tr><td><b>${esc(p.ticker)}</b></td><td>$${fmt(p.price)}</td><td>${pct(p.atm_iv, 1)}</td><td>${pct(p.expected_std_pct, 1)}</td><td>${sigma}</td><td>${band}</td><td>${esc(p.expiry)}</td></tr>`;
+    }
+    if (kind === 'top') {
+      return `<tr><td><b>${esc(p.ticker)}</b></td><td>${badge(p.strategy)}</td><td>${pct(p.confidence, 1)}</td><td>$${fmt(p.price)}</td><td>${esc(p.actionable_setup)}</td><td>${esc(p.expiry)}</td></tr>`;
+    }
+    return `<tr><td><b>${esc(p.ticker)}</b></td><td>$${fmt(p.price)}</td><td>${fmt(p.sentiment_score, 2)}</td><td>${fmt(p.iv_skew, 3)}</td><td>${fmt(p.pcr_volume, 2)}</td><td>${sigma}</td><td>${esc(p.expiry)}</td></tr>`;
+  });
+}
+
+function renderPicks(s) {
+  const flowH = ['Ticker', 'Price', 'Score', 'IV Skew', 'PCR', '±1σ Range', 'Expiry'];
+  renderTable('bullTable', flowH, pickRows(s.top_bullish_picks, 'flow'));
+  renderTable('bearTable', flowH, pickRows(s.top_bearish_picks, 'flow'));
+  renderTable('harvestTable', ['Ticker', 'Price', 'ATM IV', 'Exp. Move', '±1σ Range', 'Sell Outside (25-75%)', 'Expiry'], pickRows(s.top_premium_harvest_picks, 'harvest'));
+  renderTable('topTable', ['Ticker', 'Strategy', 'Win Prob', 'Price', 'Setup', 'Expiry'], pickRows(s.top_confident_predictions, 'top'));
+
+  const dist = s.strategy_distribution || {};
+  const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+  $('stratMix').innerHTML = Object.entries(dist).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+    `<div class="row"><span class="label">${badge(k)}</span><div class="bar"><div style="width:${v / total * 100}%"></div></div><span class="count">${v}</span></div>`).join('')
+    || '<p class="muted">No active signals.</p>';
+}
+
+function renderMetrics(result, s) {
+  const p = s.strategy_performance || {};
+  $('mWin').textContent = pct(p.sentiment_win_rate_pct, 1);
+  $('mAlpha').textContent = p.sentiment_long_short_alpha_pct == null ? '-' : `${fmt(p.sentiment_long_short_alpha_pct, 2)}%`;
+  $('mAlphaAnn').textContent = p.sentiment_annualized_alpha_pct == null ? '' : `~${fmt(p.sentiment_annualized_alpha_pct, 1)}% annualized, Sharpe ${fmt(p.sentiment_sharpe_ratio, 2)}`;
+  $('mOver').textContent = p.option_overpricing_factor == null ? '-' : `${fmt(p.option_overpricing_factor, 2)}x`;
+  $('mHarvest').textContent = pct(p.premium_harvest_win_rate_pct, 1);
+  $('mDir').textContent = pct(s.directional_accuracy_pct, 1);
+  const stocks = new Set(originalData.map(r => r.ticker).filter(Boolean));
+  $('mRecords').textContent = `${originalData.length.toLocaleString()} / ${stocks.size}`;
+  $('mUpdated').textContent = result.lastUpdated;
+  $('footerTime').textContent = result.lastUpdated;
+
+  const cmp = [['Avg expected 1σ move', s.avg_expected_std_pct == null ? null : s.avg_expected_std_pct * 100],
+               ['Avg absolute error vs forecast', s.avg_abs_error_pct]];
+  $('moveCompare').innerHTML = `<table><tbody>${cmp.map(([k, v]) => `<tr><td>${k}</td><td>${pct(v)}</td></tr>`).join('')}
+    <tr><td>Overpricing ratio</td><td>${p.option_overpricing_factor == null ? '-' : fmt(p.option_overpricing_factor) + 'x'}</td></tr></tbody></table>`;
+  const calib = [['Realized evaluations', fmt(p.total_realized_evaluations)], ['50% interval hit rate', pct(s.interval_hit_rate_pct)],
+                 ['1σ interval hit rate', pct(s.std1_interval_hit_rate_pct)], ['Median z-score', fmt(s.median_z_score)]];
+  $('calib').innerHTML = `<table><tbody>${calib.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderStatistics(st) {
+  if (!st) return;
+  const kv = (id, pairs) => $(id).innerHTML = `<tbody>${pairs.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody>`;
+  const n = st.normality_testing;
+  if (n) kv('normTable', [['N', n.n], ['Mean', fmt(n.mean, 4)], ['Median', fmt(n.median, 4)], ['Std Dev', fmt(n.std_dev, 4)],
+    ['Skewness', fmt(n.skewness, 4)], ['Kurtosis', fmt(n.kurtosis, 4)], ['Shapiro-Wilk p', fmt(n.shapiro_wilk_p, 4)],
+    ["D'Agostino K2 p", fmt(n.dagostino_k2_p, 4)], ['Anderson-Darling', n.anderson_darling_reject ? 'Reject' : 'Accept'],
+    ['Jarque-Bera p', fmt(n.jarque_bera_p, 4)], ['Kolmogorov-Smirnov p', fmt(n.kolmogorov_smirnov_p, 4)]]);
+  const t = st.tail_behavior;
+  if (t) kv('tailTable', [['|z|>2 empirical', pct(t.beyond_z2_empirical)], ['|z|>2 normal', pct(t.beyond_z2_normal)],
+    ['|z|>3 empirical', pct(t.beyond_z3_empirical)], ['|z|>3 normal', pct(t.beyond_z3_normal)]]);
+  if (Array.isArray(st.feature_correlations_reliability))
+    renderTable('relTable', ['Feature', 't-stat', 'p-value'], st.feature_correlations_reliability.map(i =>
+      `<tr><td>${esc(i.feature)}</td><td>${fmt(i.t_stat)}</td><td>${fmt(i.p_value, 4)}</td></tr>`));
+  if (Array.isArray(st.feature_correlations_accuracy))
+    renderTable('accTable', ['Feature', 'r', 'p'], st.feature_correlations_accuracy.map(i =>
+      `<tr><td>${esc(i.feature)}</td><td>${fmt(i.r, 4)}</td><td>${fmt(i.p, 4)}</td></tr>`));
+}
+
+const yn = v => v === 1 || v === true ? 'Yes' : (v === 0 || v === false ? 'No' : '-');
+
+function renderStockDetails() {
+  const box = $('stockDetail');
+  if (!selectedTicker) { box.className = 'muted'; box.textContent = 'Select a stock to view its latest signal and history.'; return; }
+  const rows = originalData.filter(r => r.ticker === selectedTicker)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  if (!rows.length) { box.textContent = 'No data.'; return; }
+  const l = rows[0];
+  box.className = '';
+  box.innerHTML = `<div class="stats">
+    <div class="stat-card"><div class="stat-label">Latest Strategy</div><div class="stat-value" style="font-size:1.1rem">${esc(l.strategy_recommendation)}</div></div>
+    <div class="stat-card"><div class="stat-label">Setup</div><div class="stat-value" style="font-size:.9rem">${esc(l.actionable_setup)}</div></div>
+    <div class="stat-card"><div class="stat-label">Sentiment Score</div><div class="stat-value">${fmt(l.sentiment_score, 2)}</div></div>
+    <div class="stat-card"><div class="stat-label">ATM IV</div><div class="stat-value">${l['ATM IV'] == null ? '-' : pct(l['ATM IV'] * 100, 1)}</div></div>
+  </div>
+  <h3>Recent History</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Strategy</th><th>Z-Score</th><th>Abs Error %</th><th>Direction OK</th><th>50% Hit</th><th>1σ Hit</th></tr></thead><tbody>
+  ${rows.slice(0, 10).map(r => `<tr><td>${esc(r.date)}</td><td>${badge(r.strategy_recommendation)}</td><td>${fmt(r.z_score, 3)}</td><td>${pct(r.abs_error_pct)}</td><td>${yn(r.pdf_directional_correct)}</td><td>${yn(r.landed_in_50_pct_interval)}</td><td>${yn(r.landed_in_1std_interval)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function shouldShowTable() {
+  return showFullData || selectedTicker || $('searchInput').value.trim() || $('filterColumn').value;
+}
+
+function displayTable() {
+  const table = $('dataTable'), msg = $('tableMessage'), err = $('errorDiv');
+  if (!shouldShowTable()) { table.style.display = 'none'; err.style.display = 'none'; msg.style.display = 'block'; $('pagination').innerHTML = ''; return; }
+  msg.style.display = 'none';
+  const pageData = filteredData.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
+  if (!pageData.length) { table.style.display = 'none'; err.style.display = 'block'; err.textContent = 'No results found.'; $('pagination').innerHTML = ''; return; }
+  err.style.display = 'none'; table.style.display = 'table';
+  $('tableBody').innerHTML = pageData.map(r => `<tr>${columns.map(c => `<td>${esc(r[c])}</td>`).join('')}</tr>`).join('');
+  updatePagination();
+  $('searchSummary').textContent = filteredData.length !== originalData.length
+    ? `Found ${filteredData.length.toLocaleString()} of ${originalData.length.toLocaleString()} records` : '';
+}
+
+function updatePagination() {
+  const pg = $('pagination'); pg.innerHTML = '';
+  const total = Math.ceil(filteredData.length / recordsPerPage);
+  const add = (label, page, opts = {}) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.disabled = !!opts.disabled;
+    if (opts.active) b.className = 'active';
+    b.onclick = () => { currentPage = page; displayTable(); };
+    pg.appendChild(b);
+  };
+  add('← Prev', currentPage - 1, {disabled: currentPage === 1});
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || Math.abs(i - currentPage) <= 2) add(i, i, {active: i === currentPage});
+    else if (i === currentPage - 3 || i === currentPage + 3) pg.appendChild(Object.assign(document.createElement('span'), {textContent: '…'}));
+  }
+  add('Next →', currentPage + 1, {disabled: currentPage === total});
+}
+
+function sortTable(col) {
+  filteredData.sort((a, b) => {
+    const x = a[col], y = b[col];
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
+  });
+  currentPage = 1; displayTable();
+}
+
+function populateValueFilter(col) {
+  const fv = $('filterValue');
+  fv.innerHTML = '<option value="">Filter value…</option>';
+  if (!col) return;
+  [...new Set(originalData.map(r => r[col]).filter(v => v !== null && v !== undefined))]
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .slice(0, 2000)
+    .forEach(v => fv.appendChild(Object.assign(document.createElement('option'), {value: v, textContent: v})));
+}
+
+function resetFilters() {
+  selectedTicker = ''; showFullData = false;
+  $('searchInput').value = ''; $('stockSelector').value = ''; $('filterColumn').value = '';
+  $('filterValue').innerHTML = '<option value="">Filter value…</option>';
+  filteredData = [...originalData]; currentPage = 1;
+  renderStockDetails(); displayTable();
+}
+
+function applyDropdownFilters() {
+  const col = $('filterColumn').value, val = $('filterValue').value;
+  filteredData = originalData.filter(r => !col || !val || String(r[col]) === val);
+  currentPage = 1; displayTable();
+}
+
+function bindEvents() {
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+    document.querySelectorAll('.tab, .tab-content').forEach(e => e.classList.remove('active'));
+    t.classList.add('active'); $(t.dataset.tab).classList.add('active');
+  });
+  $('stockSelector').onchange = function () {
+    selectedTicker = this.value; showFullData = false;
+    filteredData = selectedTicker ? originalData.filter(r => r.ticker === selectedTicker) : [...originalData];
+    currentPage = 1; renderStockDetails(); displayTable();
+  };
+  $('clearStock').onclick = resetFilters;
+  $('resetBtn').onclick = resetFilters;
+  $('showFull').onclick = () => { resetFilters(); showFullData = true; displayTable(); };
+  $('searchInput').onkeyup = function () {
+    const term = this.value.toLowerCase();
+    selectedTicker = ''; $('stockSelector').value = '';
+    filteredData = term ? originalData.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(term))) : [...originalData];
+    currentPage = 1; renderStockDetails(); displayTable();
+  };
+  $('recordsPerPage').onchange = function () { recordsPerPage = parseInt(this.value); currentPage = 1; displayTable(); };
+  $('filterColumn').onchange = function () { populateValueFilter(this.value); applyDropdownFilters(); };
+  $('filterValue').onchange = applyDropdownFilters;
+  $('downloadBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify({lastUpdated: new Date().toISOString(), records: filteredData}, null, 2)], {type: 'application/json'});
+    const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: `sp500_options_${new Date().toISOString().split('T')[0]}.json`});
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('./data.json');
+    if (!res.ok) throw new Error('Failed to load data');
+    const result = await res.json();
+    originalData = result.data; filteredData = [...originalData]; columns = result.columns;
+    const s = result.summary || {};
+
+    $('tableHead').innerHTML = `<tr>${columns.map(c => `<th title="Click to sort">${esc(c)}</th>`).join('')}</tr>`;
+    [...$('tableHead').querySelectorAll('th')].forEach((th, i) => th.onclick = () => sortTable(columns[i]));
+    columns.forEach(c => $('filterColumn').appendChild(Object.assign(document.createElement('option'), {value: c, textContent: c})));
+    [...new Set(originalData.map(r => r.ticker).filter(Boolean))].sort()
+      .forEach(t => $('stockSelector').appendChild(Object.assign(document.createElement('option'), {value: t, textContent: t})));
+
+    renderMetrics(result, s);
+    renderPicks(s);
+    renderStatistics(s.statistics);
+    $('loading').style.display = 'none';
+    displayTable();
+  } catch (e) {
+    console.error(e);
+    $('loading').style.display = 'none';
+    $('errorDiv').style.display = 'block';
+    $('errorDiv').textContent = `Error loading data: ${e.message}. Make sure data.json is next to this file.`;
+  }
+}
+
+bindEvents();
+window.addEventListener('load', loadData);
+</script>
 </body>
 </html>
