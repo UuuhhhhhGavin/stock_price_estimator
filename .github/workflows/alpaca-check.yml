@@ -1,0 +1,30 @@
+name: Alpaca credentials check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [legendary-funicular]
+    paths: [.github/workflows/alpaca-check.yml]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: copilot
+    steps:
+      - name: Verify Alpaca paper credentials
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+        run: |
+          BASE="${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}"
+          BASE="${BASE%/}"; BASE="${BASE%/v2}"
+          for v in ALPACA_API_KEY ALPACA_SECRET_KEY; do
+            [ -n "${!v}" ] && echo "$v: set" || { echo "$v: MISSING"; exit 1; }
+          done
+          case "$BASE" in *paper*) echo "endpoint: paper ($BASE)";; *) echo "Refusing non-paper endpoint"; exit 1;; esac
+          code=$(curl -s -o acct.json -w '%{http_code}' "$BASE/v2/account" \
+            -H "APCA-API-KEY-ID: $ALPACA_API_KEY" -H "APCA-API-SECRET-KEY: $ALPACA_SECRET_KEY")
+          echo "HTTP $code"
+          [ "$code" = "200" ] || { echo "Auth failed"; exit 1; }
+          python3 -c "import json;a=json.load(open('acct.json'));print('status:',a['status'],'| trading_blocked:',a['trading_blocked'],'| currency:',a['currency'])"
