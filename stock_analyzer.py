@@ -58,6 +58,11 @@ COL_SENTIMENT_SCORE = "sentiment_score"
 COL_CALIBRATED_WIN_RATE = "calibrated_win_rate"
 COL_LANDED_1STD = "landed_in_1std_interval"
 
+# Trade-simulation assumptions (applied to simulated P&L columns)
+COMMISSION_PER_CONTRACT = 0.65   # per option leg, charged at entry (positions held to expiry)
+EXTRA_SLIPPAGE_PCT = 0.0         # extra fraction of the quoted spread paid on top of bid/ask fills
+_SECTOR_MAP = {}
+
 # Empirical |z| → directional accuracy lookup (from zscore_analysis findings)
 Z_ACCURACY_TABLE = [
     (0.25, 0.824),
@@ -158,6 +163,10 @@ def get_sp500_tickers():
     }
     r = requests.get(url, headers=header)
     table = pd.read_html(r.text)
+    try:
+        _SECTOR_MAP.update(dict(zip(table[0]['Symbol'], table[0]['GICS Sector'])))
+    except Exception:
+        pass
     return table[0]['Symbol'].tolist()
 
 
@@ -252,7 +261,191 @@ def compute_stock_delta(S, K, T, r, sigma, option_type='call'):
     return -norm.cdf(-d1)
 
 
-def analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expiration):
+# ─── Trade-economics / context helpers ───────────────────────────────────────
+
+def _num(x):
+    try:
+        v = float(x)
+        return None if np.isnan(v) else v
+    except (TypeError, ValueError):
+        return None
+
+
+def _quote_fields(row, prefix):
+    """bid/ask/mid/volume/OI for one option row, as prefixed columns."""
+    out = {f'{prefix}_bid': None, f'{prefix}_ask': None, f'{prefix}_mid': None,
+           f'{prefix}_spread_pct': None, f'{prefix}_volume': None, f'{prefix}_oi': None}
+    if row is None:
+        return out
+    bid, ask = _num(row.get('bid')), _num(row.get('ask'))
+    out[f'{prefix}_bid'], out[f'{prefix}_ask'] = bid, ask
+    if bid is not None and ask is not None and ask > 0:
+        mid = (bid + ask) / 2
+        out[f'{prefix}_mid'] = mid
+        out[f'{prefix}_spread_pct'] = (ask - bid) / mid if mid > 0 else None
+    out[f'{prefix}_volume'] = _num(row.get('volume'))
+    out[f'{prefix}_oi'] = _num(row.get('openInterest'))
+    return out
+
+
+def _nearest_row(df, strike):
+    if df is None or df.empty:
+        return None
+    return df.iloc[(df['strike'] - strike).abs().argsort()[:1]].iloc[0]
+
+
+def _strike_row(df, target, direction):
+    """Quoted row at the first strike at/above (direction=1) or at/below (-1) target."""
+    q = df[(df['bid'] > 0) & (df['ask'] > 0)]
+    q = q[q['strike'] >= target] if direction > 0 else q[q['strike'] <= target]
+    if q.empty:
+        return None
+    return q.sort_values('strike').iloc[0 if direction > 0 else -1]
+
+
+def _wing_row(df, short_strike, direction):
+    """Protective leg one listed strike beyond the short leg."""
+    q = df[(df['ask'] > 0)]
+    q = q[q['strike'] > short_strike] if direction > 0 else q[q['strike'] < short_strike]
+    if q.empty:
+        return None
+    return q.sort_values('strike').iloc[0 if direction > 0 else -1]
+
+
+def compute_trade_legs(calls, puts, current_price, expected_std, atm_strike):
+    """Entry quotes needed to simulate long option, debit spread and credit spread later."""
+    out = {}
+    atm_call = _nearest_row(calls, atm_strike)
+    atm_put = _nearest_row(puts, atm_strike)
+    out.update(_quote_fields(atm_call, 'atm_call'))
+    out.update(_quote_fields(atm_put, 'atm_put'))
+    out['atm_put_strike'] = _num(atm_put['strike']) if atm_put is not None else None
+
+    up_target = current_price + expected_std
+    dn_target = current_price - expected_std
+    sc = _strike_row(calls, up_target, +1)   # short call (bear credit) / short leg of bull debit
+    sp = _strike_row(puts, dn_target, -1)    # short put (bull credit) / short leg of bear debit
+    wc = _wing_row(calls, sc['strike'], +1) if sc is not None else None
+    wp = _wing_row(puts, sp['strike'], -1) if sp is not None else None
+    out.update({
+        'otm_call_strike': _num(sc['strike']) if sc is not None else None,
+        'otm_call_bid': _num(sc['bid']) if sc is not None else None,
+        'otm_call_ask': _num(sc['ask']) if sc is not None else None,
+        'otm_call_wing_strike': _num(wc['strike']) if wc is not None else None,
+        'otm_call_wing_ask': _num(wc['ask']) if wc is not None else None,
+        'otm_put_strike': _num(sp['strike']) if sp is not None else None,
+        'otm_put_bid': _num(sp['bid']) if sp is not None else None,
+        'otm_put_ask': _num(sp['ask']) if sp is not None else None,
+        'otm_put_wing_strike': _num(wp['strike']) if wp is not None else None,
+        'otm_put_wing_ask': _num(wp['ask']) if wp is not None else None,
+    })
+    return out
+
+
+def compute_flow_totals(calls, puts):
+    return {
+        'call_volume_total': float(calls['volume'].fillna(0).sum()),
+        'put_volume_total': float(puts['volume'].fillna(0).sum()),
+        'call_oi_total': float(calls['openInterest'].fillna(0).sum()),
+        'put_oi_total': float(puts['openInterest'].fillna(0).sum()),
+    }
+
+
+def _atm_iv(calls, current_price):
+    q = calls[(calls['bid'] > 0) & (calls['ask'] > 0) & (calls['impliedVolatility'] > 0)]
+    row = _nearest_row(q, current_price)
+    return _num(row['impliedVolatility']) if row is not None else None
+
+
+def compute_term_structure(stock, expirations, expiration_idx, current_price, far_iv):
+    """Front-expiry ATM IV and slope (analyzed expiry IV minus front IV)."""
+    out = {'front_atm_iv': None, 'iv_term_slope': None}
+    try:
+        if expiration_idx < 1:
+            return out
+        front = stock.option_chain(expirations[0]).calls
+        front = front[['strike', 'bid', 'ask', 'impliedVolatility']]
+        iv0 = _atm_iv(front, current_price)
+        out['front_atm_iv'] = iv0
+        if iv0 is not None and far_iv is not None:
+            out['iv_term_slope'] = far_iv - iv0
+    except Exception:
+        pass
+    return out
+
+
+def compute_price_context(hist, current_price):
+    """Trend/momentum/realized-vol features from ~6 months of daily history."""
+    keys = ['ret_5d', 'ret_20d', 'pct_vs_ma20', 'pct_vs_ma50', 'rsi14', 'hv20',
+            'dist_to_20d_high_pct', 'dist_to_20d_low_pct']
+    out = {k: None for k in keys}
+    try:
+        close = hist['Close'].dropna()
+        if len(close) < 21:
+            return out
+        out['ret_5d'] = float(close.iloc[-1] / close.iloc[-6] - 1) if len(close) > 5 else None
+        out['ret_20d'] = float(close.iloc[-1] / close.iloc[-21] - 1)
+        out['pct_vs_ma20'] = float(current_price / close.tail(20).mean() - 1)
+        if len(close) >= 50:
+            out['pct_vs_ma50'] = float(current_price / close.tail(50).mean() - 1)
+        delta = close.diff().tail(14)
+        gain, loss = delta.clip(lower=0).mean(), -delta.clip(upper=0).mean()
+        out['rsi14'] = float(100 - 100 / (1 + gain / loss)) if loss > 0 else 100.0
+        out['hv20'] = float(np.log(close).diff().tail(20).std() * np.sqrt(252))
+        hi = float(hist['High'].tail(20).max()) if 'High' in hist else float(close.tail(20).max())
+        lo = float(hist['Low'].tail(20).min()) if 'Low' in hist else float(close.tail(20).min())
+        out['dist_to_20d_high_pct'] = (hi - current_price) / current_price
+        out['dist_to_20d_low_pct'] = (current_price - lo) / current_price
+    except Exception:
+        pass
+    return out
+
+
+def get_market_context():
+    """SPY momentum and VIX level/trend, fetched once per run."""
+    out = {'spy_ret_5d': None, 'spy_ret_20d': None, 'vix': None, 'vix_chg_5d': None}
+    try:
+        spy = yf.download('SPY', period='3mo', progress=False, auto_adjust=False)['Close'].squeeze().dropna()
+        out['spy_ret_5d'] = float(spy.iloc[-1] / spy.iloc[-6] - 1)
+        out['spy_ret_20d'] = float(spy.iloc[-1] / spy.iloc[-21] - 1)
+        vix = yf.download('^VIX', period='1mo', progress=False, auto_adjust=False)['Close'].squeeze().dropna()
+        out['vix'] = float(vix.iloc[-1])
+        out['vix_chg_5d'] = float(vix.iloc[-1] / vix.iloc[-6] - 1)
+    except Exception as e:
+        print(f"Market context unavailable: {e}")
+    return out
+
+
+def get_event_context(stock, expiration):
+    """Days to next earnings/ex-dividend and whether they fall inside the option window."""
+    out = {'days_to_earnings': None, 'earnings_in_window': None,
+           'days_to_ex_dividend': None, 'ex_dividend_in_window': None}
+    try:
+        cal = stock.calendar or {}
+        today = pd.Timestamp.today().normalize()
+        exp = pd.Timestamp(expiration)
+
+        def _first_future(val):
+            vals = val if isinstance(val, (list, tuple)) else [val]
+            dates = [pd.Timestamp(v) for v in vals if v is not None and not pd.isna(v)]
+            dates = [d for d in dates if d >= today]
+            return min(dates) if dates else None
+
+        e = _first_future(cal.get('Earnings Date'))
+        if e is not None:
+            out['days_to_earnings'] = (e - today).days
+            out['earnings_in_window'] = bool(e <= exp)
+        d = _first_future(cal.get('Ex-Dividend Date'))
+        if d is not None:
+            out['days_to_ex_dividend'] = (d - today).days
+            out['ex_dividend_in_window'] = bool(d <= exp)
+    except Exception:
+        pass
+    return out
+
+
+def analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expiration,
+                   context=None, expirations=None):
     """Generate a PDF for the given ticker+expiration using calls AND puts."""
     try:
         if stock is None:
@@ -357,7 +550,20 @@ def analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expira
         T = days_difference / 365
         atm_delta = float(compute_stock_delta(current_price, atm_strike, T, 0.03, iv))
 
-        return {
+        context = context or {}
+        extra = {'sector': _SECTOR_MAP.get(ticker),
+                 'signal_time': datetime.now().strftime('%H:%M:%S')}
+        extra.update(compute_trade_legs(calls, puts, current_price, expected_std, atm_strike))
+        extra.update(compute_flow_totals(calls, puts))
+        extra.update(compute_price_context(context.get('long_hist'), current_price))
+        extra.update(context.get('market', {}))
+        extra.update(get_event_context(stock, expiration))
+        if expirations:
+            extra.update(compute_term_structure(
+                stock, expirations, list(expirations).index(expiration), current_price, iv))
+        extra['iv_hv_ratio'] = iv / extra['hv20'] if extra.get('hv20') else None
+
+        result = {
             'date': current_date,
             'ticker': ticker,
             'analyzed option expiration': expiration,
@@ -385,6 +591,8 @@ def analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expira
             'pdf_directional_correct': None,
             'z_score': None,
         }
+        result.update(extra)
+        return result
 
     except Exception as e:
         print(f"[{ticker}] Failed: {e}")
@@ -576,6 +784,164 @@ def compute_realized_metrics(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _simulate_structures(r, settle):
+    """Per-share expiry P&L (gross) and leg counts for each structure, given the signal direction."""
+    bull = r['expected_price'] > r['current_price']
+    slip = EXTRA_SLIPPAGE_PCT
+    out = {}
+
+    def fill_buy(ask, bid):
+        return ask + slip * (ask - bid) if pd.notna(ask) and pd.notna(bid) else ask
+
+    def fill_sell(bid, ask):
+        return bid - slip * (ask - bid) if pd.notna(ask) and pd.notna(bid) else bid
+
+    def itm(k, call):
+        return max(settle - k, 0.0) if call else max(k - settle, 0.0)
+
+    # Long ATM option
+    side = 'atm_call' if bull else 'atm_put'
+    k = r['ATM Strike Price'] if bull else r.get('atm_put_strike')
+    ask, bid = r.get(f'{side}_ask'), r.get(f'{side}_bid')
+    if pd.notna(ask) and pd.notna(k):
+        cost = fill_buy(ask, bid)
+        out['sim_long_option_pnl'] = itm(k, bull) - cost
+        out['sim_long_option_cost'] = cost
+        out['sim_long_option_legs'] = 1
+
+    # Debit spread: long ATM, short 1-std OTM in signal direction
+    kind = 'otm_call' if bull else 'otm_put'
+    sk, sbid, sask = r.get(f'{kind}_strike'), r.get(f'{kind}_bid'), r.get(f'{kind}_ask')
+    if pd.notna(ask) and pd.notna(k) and pd.notna(sk) and pd.notna(sbid):
+        debit = fill_buy(ask, bid) - fill_sell(sbid, sask)
+        out['sim_debit_spread_pnl'] = itm(k, bull) - itm(sk, bull) - debit
+        out['sim_debit_spread_cost'] = debit
+        out['sim_debit_spread_legs'] = 2
+
+    # Credit spread (opposite wing): bull -> short OTM put, bear -> short OTM call
+    ckind = 'otm_put' if bull else 'otm_call'
+    ccall = not bull
+    sk, sbid, sask = r.get(f'{ckind}_strike'), r.get(f'{ckind}_bid'), r.get(f'{ckind}_ask')
+    wk, wask = r.get(f'{ckind}_wing_strike'), r.get(f'{ckind}_wing_ask')
+    if pd.notna(sk) and pd.notna(sbid) and pd.notna(wk) and pd.notna(wask):
+        credit = fill_sell(sbid, sask) - wask
+        out['sim_credit_spread_pnl'] = credit - (itm(sk, ccall) - itm(wk, ccall))
+        out['sim_credit_spread_credit'] = credit
+        out['sim_credit_spread_legs'] = 2
+    return out
+
+
+def update_trade_outcomes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Backfill return/magnitude/excursion/vol outcomes and simulated option P&L
+    for rows whose realized_price is known. Safe to run repeatedly.
+    """
+    needed = {'realized_price', 'current_price', 'expected_price', 'expected_std', 'date', 'ticker'}
+    if df.empty or not needed.issubset(df.columns):
+        return df
+
+    for c in ('realized_return_pct', 'move_ratio', 'signed_edge_pct', 'signal_return_pct',
+              'mfe_pct', 'mae_pct', 'realized_vol', 'iv_minus_rv'):
+        if c not in df.columns:
+            df[c] = np.nan
+
+    mask = df['realized_price'].notna()
+    cur = df.loc[mask, 'current_price']
+    real = df.loc[mask, 'realized_price']
+    sign = np.sign(df.loc[mask, 'expected_price'] - cur)
+    df.loc[mask, 'realized_return_pct'] = (real / cur - 1) * 100
+    df.loc[mask, 'signed_edge_pct'] = (df.loc[mask, 'p50'] - cur) / cur * 100 if 'p50' in df else np.nan
+    df.loc[mask, 'signal_return_pct'] = sign * (real / cur - 1) * 100
+    std = df.loc[mask, 'expected_std']
+    df.loc[mask, 'move_ratio'] = (abs(real - cur) / std).where(std > 0)
+
+    # Path-dependent metrics need daily bars between signal date and expiry
+    todo = df[mask & (df['mfe_pct'].isna() | df['realized_vol'].isna())]
+    if not todo.empty:
+        start = pd.to_datetime(todo['date']).min().strftime('%Y-%m-%d')
+        end = (pd.to_datetime(todo['analyzed option expiration']).max() + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+        try:
+            bars = yf.download(todo['ticker'].unique().tolist(), start=start, end=end,
+                               progress=False, group_by='ticker', threads=True, auto_adjust=False)
+        except Exception as e:
+            print(f"Failed to download path data: {e}")
+            bars = None
+        if bars is not None and not bars.empty:
+            for idx, row in todo.iterrows():
+                try:
+                    b = bars[row['ticker']] if isinstance(bars.columns, pd.MultiIndex) else bars
+                    d0 = pd.Timestamp(row['date'])
+                    d1 = pd.Timestamp(row['analyzed option expiration'])
+                    b = b[(b.index >= d0) & (b.index <= d1)].dropna(subset=['Close'])
+                    if len(b) < 2:
+                        continue
+                    s0 = row['current_price']
+                    sg = np.sign(row['expected_price'] - s0)
+                    hi, lo = b['High'].max(), b['Low'].min()
+                    fav, adv = (hi, lo) if sg >= 0 else (lo, hi)
+                    df.loc[idx, 'mfe_pct'] = sg * (fav / s0 - 1) * 100
+                    df.loc[idx, 'mae_pct'] = sg * (adv / s0 - 1) * 100
+                    rv = float(np.log(b['Close']).diff().std() * np.sqrt(252))
+                    df.loc[idx, 'realized_vol'] = rv
+                    if pd.notna(row.get('ATM IV')):
+                        df.loc[idx, 'iv_minus_rv'] = row['ATM IV'] - rv
+                except Exception:
+                    continue
+
+    # Simulated option structures settled at the realized price
+    sim_cols = []
+    for name in ('long_option', 'debit_spread', 'credit_spread'):
+        for suffix in ('pnl', 'net_pnl_per_contract', 'return_on_risk', 'legs'):
+            sim_cols.append(f'sim_{name}_{suffix}')
+    for c in sim_cols:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    for idx in df.index[mask & df['sim_long_option_pnl'].isna() & df.get('atm_call_ask', pd.Series(index=df.index, dtype=float)).notna()]:
+        r = df.loc[idx]
+        sim = _simulate_structures(r, r['realized_price'])
+        for name, risk_key in (('long_option', 'cost'), ('debit_spread', 'cost'), ('credit_spread', None)):
+            pnl, legs = sim.get(f'sim_{name}_pnl'), sim.get(f'sim_{name}_legs')
+            if pnl is None:
+                continue
+            df.loc[idx, f'sim_{name}_pnl'] = pnl
+            df.loc[idx, f'sim_{name}_legs'] = legs
+            df.loc[idx, f'sim_{name}_net_pnl_per_contract'] = pnl * 100 - COMMISSION_PER_CONTRACT * legs
+            if name == 'credit_spread':
+                width = abs(r.get('otm_put_strike' if r['expected_price'] > r['current_price'] else 'otm_call_strike')
+                            - r.get('otm_put_wing_strike' if r['expected_price'] > r['current_price'] else 'otm_call_wing_strike'))
+                risk = width - sim['sim_credit_spread_credit']
+            else:
+                risk = sim[f'sim_{name}_cost']
+            if risk and risk > 0:
+                df.loc[idx, f'sim_{name}_return_on_risk'] = pnl / risk
+    return df
+
+
+def add_history_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Day-over-day flow changes, vs-20-day-average volume, and IV rank from the log itself."""
+    needed = {'date', 'ticker', 'ATM IV'}
+    if df.empty or not needed.issubset(df.columns):
+        return df
+    df['_d'] = pd.to_datetime(df['date'], errors='coerce')
+    df = df.sort_values(['ticker', '_d', 'analyzed option expiration'], kind='stable')
+    g = df.groupby('ticker', sort=False)
+
+    for src, dst in (('iv_skew', 'iv_skew_change'), ('pcr_volume', 'pcr_volume_change'),
+                     ('call_oi_total', 'call_oi_change'), ('put_oi_total', 'put_oi_change')):
+        if src in df.columns:
+            df[dst] = g[src].diff()
+    for src, dst in (('call_volume_total', 'call_volume_vs_20d'), ('put_volume_total', 'put_volume_vs_20d')):
+        if src in df.columns:
+            avg = g[src].transform(lambda s: s.shift(1).rolling(20, min_periods=5).mean())
+            df[dst] = df[src] / avg.where(avg > 0)
+
+    df['iv_rank'] = g['ATM IV'].transform(
+        lambda s: s.expanding(min_periods=10).apply(lambda w: (w[:-1] < w[-1]).mean() if len(w) > 1 else np.nan, raw=True)
+    )
+    return df.drop(columns=['_d']).sort_index()
+
+
 def run_tracking(excel_path: str, save: bool = True, ticker_subset=None):
     """Run the tracking pipeline. Returns the merged DataFrame, or None on failure."""
     print("\n" + "=" * 80)
@@ -591,6 +957,9 @@ def run_tracking(excel_path: str, save: bool = True, ticker_subset=None):
         print('ERROR: No price data was downloaded. Cannot proceed.')
         return None
 
+    bulk_long = bulk_get_history(tickers, period='6mo')
+    market = get_market_context()
+
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
@@ -601,7 +970,9 @@ def run_tracking(excel_path: str, save: bool = True, ticker_subset=None):
             options_chain, calls, puts, expirations = get_options_chain(stock, stock_hist, expiration_week=1)
             print(f'[{ticker}] Expirations: {expirations}')
             expiration = expirations[1]
-            result = analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expiration)
+            context = {'market': market, 'long_hist': extract_ticker_history(bulk_long, ticker)}
+            result = analyze_ticker(ticker, stock, stock_hist, options_chain, calls, puts, expiration,
+                                    context=context, expirations=expirations)
             if result is not None:
                 for key, value in result.items():
                     print(f'{key.title()}: {value}')
@@ -628,6 +999,8 @@ def run_tracking(excel_path: str, save: bool = True, ticker_subset=None):
     try:
         merged = merge_results(existing, stock_overview)
         merged = update_realized_prices(merged)
+        merged = update_trade_outcomes(merged)
+        merged = add_history_features(merged)
         save_log(merged, excel_path)
         print(f"Saved merged log to {excel_path} ({len(merged)} rows).")
         return merged
